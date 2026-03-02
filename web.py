@@ -127,9 +127,6 @@ app.include_router(geminicli_anthropic_router, prefix="", tags=["Geminicli Anthr
 # Panel路由 - 包含认证、凭证管理和控制面板功能
 app.include_router(panel_router, prefix="", tags=["Panel Interface"])
 
-# 静态文件路由 - 服务docs目录下的文件
-app.mount("/docs", StaticFiles(directory="docs"), name="docs")
-
 # 静态文件路由 - 服务front目录下的文件（HTML、JS、CSS等）
 app.mount("/front", StaticFiles(directory="front"), name="front")
 

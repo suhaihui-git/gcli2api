@@ -639,9 +639,9 @@ function createCredCard(credInfo, manager) {
     // Preview状态显示 (仅对geminicli模式显示)
     if (managerType !== 'antigravity' && credInfo.preview !== undefined) {
         if (credInfo.preview) {
-            statusBadges += '<span class="status-badge" style="background-color: #9c27b0; color: white;" title="该凭证支持Preview模型">🔬 Preview</span>';
+            statusBadges += '<span class="status-badge" style="background-color: #9c27b0; color: white;" title="该凭证支持Preview模型">Preview</span>';
         } else {
-            statusBadges += '<span class="status-badge" style="background-color: #607d8b; color: white;" title="该凭证不支持Preview模型">❌ Preview</span>';
+            statusBadges += '<span class="status-badge" style="background-color: #607d8b; color: white;" title="该凭证不支持Preview模型">Preview</span>';
         }
     }
 
@@ -663,7 +663,7 @@ function createCredCard(credInfo, manager) {
 
         if (activeCooldowns.length > 0) {
             activeCooldowns.slice(0, 2).forEach(item => {
-                statusBadges += `<span class="cooldown-badge" style="background-color: #17a2b8;" title="模型: ${item.fullModel}">🔧 ${item.model}: ${item.time}</span>`;
+                statusBadges += `<span class="cooldown-badge" style="background-color: #17a2b8;" title="模型: ${item.fullModel}">${item.model}: ${item.time}</span>`;
             });
             if (activeCooldowns.length > 2) {
                 const remaining = activeCooldowns.length - 2;
@@ -713,15 +713,14 @@ function createCredCard(credInfo, manager) {
         </div>
         <div class="cred-actions">${actionButtons}</div>
         <div class="cred-details" id="details-${pathId}">
-            <div class="cred-content" data-filename="${filename}" data-loaded="false">点击"查看内容"按钮加载文件详情...</div>
+            <div class="cred-content" data-filename="${filename}" data-loaded="false"></div>
         </div>
         <div class="cred-details" id="errors-${pathId}">
-            <div class="cred-content" data-filename="${filename}" data-loaded="false" style="background-color: #fff3cd; border-color: #ffc107;">点击"查看报错"按钮加载报错信息...</div>
+            <div class="cred-content" data-filename="${filename}" data-loaded="false"></div>
         </div>
         ${managerType === 'antigravity' ? `
         <div class="cred-quota-details" id="quota-${pathId}" style="display: none;">
             <div class="cred-quota-content" data-filename="${filename}" data-loaded="false">
-                点击"查看额度"按钮加载额度信息...
             </div>
         </div>
         ` : ''}
@@ -927,9 +926,8 @@ function switchTab(tabName) {
     // 如果点击的是当前标签页，不做任何操作
     if (currentContent === targetContent) return;
 
-    // 找到目标标签按钮
-    const targetTab = event && event.target ? event.target :
-        document.querySelector(`.tab[onclick*="'${tabName}'"]`);
+    // 找到目标标签按钮（始终使用选择器定位隐藏的tab按钮）
+    const targetTab = document.querySelector(`.tab[onclick*="'${tabName}'"]`);
 
     // 移除所有标签页的active状态
     document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -1804,8 +1802,7 @@ async function toggleAntigravityQuotaDetails(pathId) {
 
                     if (Object.keys(models).length === 0) {
                         contentDiv.innerHTML = `
-                            <div style="text-align: center; padding: 20px; color: #999;">
-                                <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
+                            <div style="text-align: center; padding: 16px; color: #999;">
                                 <div>暂无额度信息</div>
                             </div>
                         `;
@@ -1865,23 +1862,21 @@ async function toggleAntigravityQuotaDetails(pathId) {
                     // 失败时显示错误
                     const errorMsg = data.error || '获取额度信息失败';
                     contentDiv.innerHTML = `
-                        <div style="text-align: center; padding: 20px; color: #dc3545;">
-                            <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
-                            <div style="font-weight: bold; margin-bottom: 5px;">获取额度信息失败</div>
+                        <div style="text-align: center; padding: 16px; color: #dc3545;">
+                            <div style="font-weight: 600; margin-bottom: 4px;">获取额度信息失败</div>
                             <div style="font-size: 13px; color: #666;">${errorMsg}</div>
                         </div>
                     `;
-                    showStatus(`❌ ${errorMsg}`, 'error');
+                    showStatus(`获取额度信息失败: ${errorMsg}`, 'error');
                 }
             } catch (error) {
                 contentDiv.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #dc3545;">
-                        <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
-                        <div style="font-weight: bold; margin-bottom: 5px;">网络错误</div>
+                    <div style="text-align: center; padding: 16px; color: #dc3545;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">网络错误</div>
                         <div style="font-size: 13px; color: #666;">${error.message}</div>
                     </div>
                 `;
-                showStatus(`❌ 获取额度信息失败: ${error.message}`, 'error');
+                showStatus(`获取额度信息失败: ${error.message}`, 'error');
             }
         }
     }
@@ -1911,7 +1906,7 @@ async function toggleErrorDetailsCommon(pathId, manager) {
 
         // 每次展开都重新加载数据
         if (filename) {
-            contentDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">⏳ 正在加载报错信息...</div>';
+            contentDiv.innerHTML = '<div style="text-align: center; padding: 16px; color: #666;">正在加载报错信息...</div>';
 
             try {
                 const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : 'mode=geminicli';
@@ -1927,10 +1922,9 @@ async function toggleErrorDetailsCommon(pathId, manager) {
 
                     if (errorCodes.length === 0) {
                         contentDiv.innerHTML = `
-                            <div style="text-align: center; padding: 20px; color: #28a745;">
-                                <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
-                                <div style="font-weight: bold;">无报错记录</div>
-                                <div style="font-size: 12px; color: #666; margin-top: 8px;">该凭证运行正常</div>
+                            <div style="text-align: center; padding: 16px; color: #28a745;">
+                                <div style="font-weight: 600;">无报错记录</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px;">该凭证运行正常</div>
                             </div>
                         `;
                     } else {
@@ -2020,28 +2014,26 @@ async function toggleErrorDetailsCommon(pathId, manager) {
                         contentDiv.innerHTML = errorHTML;
                     }
 
-                    showStatus('✅ 成功加载报错信息', 'success');
+                    showStatus('成功加载报错信息', 'success');
                 } else {
                     // 失败时显示错误
                     const errorMsg = data.detail || data.error || '获取报错信息失败';
                     contentDiv.innerHTML = `
-                        <div style="text-align: center; padding: 20px; color: #dc3545;">
-                            <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
-                            <div style="font-weight: bold;">加载失败</div>
-                            <div style="font-size: 12px; margin-top: 8px;">${errorMsg}</div>
+                        <div style="text-align: center; padding: 16px; color: #dc3545;">
+                            <div style="font-weight: 600;">加载失败</div>
+                            <div style="font-size: 12px; margin-top: 4px;">${errorMsg}</div>
                         </div>
                     `;
-                    showStatus(`❌ 获取报错信息失败: ${errorMsg}`, 'error');
+                    showStatus(`获取报错信息失败: ${errorMsg}`, 'error');
                 }
             } catch (error) {
                 contentDiv.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #dc3545;">
-                        <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
-                        <div style="font-weight: bold;">网络错误</div>
-                        <div style="font-size: 12px; margin-top: 8px;">${error.message}</div>
+                    <div style="text-align: center; padding: 16px; color: #dc3545;">
+                        <div style="font-weight: 600;">网络错误</div>
+                        <div style="font-size: 12px; margin-top: 4px;">${error.message}</div>
                     </div>
                 `;
-                showStatus(`❌ 获取报错信息失败: ${error.message}`, 'error');
+                showStatus(`获取报错信息失败: ${error.message}`, 'error');
             }
         }
     }
@@ -3043,67 +3035,7 @@ async function fetchAndDisplayVersion() {
     }
 }
 
-// 检查更新
-async function checkForUpdates() {
-    const checkBtn = document.getElementById('checkUpdateBtn');
-    if (!checkBtn) return;
 
-    const originalText = checkBtn.textContent;
-
-    try {
-        // 显示检查中状态
-        checkBtn.textContent = '检查中...';
-        checkBtn.disabled = true;
-
-        // 调用API检查更新
-        const response = await fetch('./version/info?check_update=true');
-        const data = await response.json();
-
-        if (data.success) {
-            if (data.check_update === false) {
-                // 检查更新失败
-                showStatus(`检查更新失败: ${data.update_error || '未知错误'}`, 'error');
-            } else if (data.has_update === true) {
-                // 有更新
-                const updateMsg = `发现新版本！\n当前: v${data.version}\n最新: v${data.latest_version}\n\n更新内容: ${data.latest_message || '无'}`;
-                showStatus(updateMsg.replace(/\n/g, ' '), 'warning');
-
-                // 更新按钮样式
-                checkBtn.style.backgroundColor = '#ffc107';
-                checkBtn.textContent = '有新版本';
-
-                setTimeout(() => {
-                    checkBtn.style.backgroundColor = '#17a2b8';
-                    checkBtn.textContent = originalText;
-                }, 5000);
-            } else if (data.has_update === false) {
-                // 已是最新
-                showStatus('已是最新版本！', 'success');
-
-                checkBtn.style.backgroundColor = '#28a745';
-                checkBtn.textContent = '已是最新';
-
-                setTimeout(() => {
-                    checkBtn.style.backgroundColor = '#17a2b8';
-                    checkBtn.textContent = originalText;
-                }, 3000);
-            } else {
-                // 无法确定
-                showStatus('无法确定是否有更新', 'info');
-            }
-        } else {
-            showStatus(`检查更新失败: ${data.error}`, 'error');
-        }
-    } catch (error) {
-        console.error('检查更新失败:', error);
-        showStatus(`检查更新失败: ${error.message}`, 'error');
-    } finally {
-        checkBtn.disabled = false;
-        if (checkBtn.textContent === '检查中...') {
-            checkBtn.textContent = originalText;
-        }
-    }
-}
 
 // =====================================================================
 // 页面初始化

@@ -201,6 +201,11 @@ class CredentialManager:
             cached_email = state.get("user_email") if state else None
 
             if cached_email:
+                # 确保邮箱也写入凭证JSON数据
+                cred_data = await self._storage_adapter.get_credential(credential_name, mode=mode)
+                if cred_data and cred_data.get("user_email") != cached_email:
+                    cred_data["user_email"] = cached_email
+                    await self._storage_adapter.store_credential(credential_name, cred_data, mode=mode)
                 return cached_email
 
             # 如果没有缓存，从凭证数据获取
@@ -232,6 +237,11 @@ class CredentialManager:
                 await self._storage_adapter.update_credential_state(
                     credential_name, {"user_email": email}, mode=mode
                 )
+                # 将邮箱写入凭证JSON数据
+                cred_data = await self._storage_adapter.get_credential(credential_name, mode=mode)
+                if cred_data:
+                    cred_data["user_email"] = email
+                    await self._storage_adapter.store_credential(credential_name, cred_data, mode=mode)
                 return email
 
             return None

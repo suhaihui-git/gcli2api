@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   gemini-api-pool:
-    image: gemini-api-pool:latest
+    build: .
     container_name: gemini-api-pool
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${PORT:-7861}:${PORT:-7861}"
     environment:
       # Password configuration (choose one)
       # Option 1: Use common password
