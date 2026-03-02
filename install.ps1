@@ -20,12 +20,12 @@ scoop install git uv
 if (Test-Path -LiteralPath "./web.py") {
     # Already in target directory; skip clone and cd
 }
-elseif (Test-Path -LiteralPath "./gcli2api/web.py") {
-    Set-Location ./gcli2api
+elseif (Test-Path -LiteralPath "./gemini-api-pool/web.py") {
+    Set-Location ./gemini-api-pool
 }
 else {
-    git clone https://github.com/su-kaka/gcli2api.git
-    Set-Location ./gcli2api
+    git clone https://github.com/YOUR_USERNAME/gemini-api-pool.git
+    Set-Location ./gemini-api-pool
 }
 # Create relocatable virtual environment to ensure portability
 $env:UV_VENV_CLEAR = "1"

@@ -1,5 +1,5 @@
 // =====================================================================
-// GCLI2API 控制面板公共JavaScript模块
+// Gemini API Pool 控制面板公共JavaScript模块
 // =====================================================================
 
 // =====================================================================
@@ -812,7 +812,7 @@ async function login() {
 
         if (response.ok) {
             AppState.authToken = data.token;
-            localStorage.setItem('gcli2api_auth_token', AppState.authToken);
+            localStorage.setItem('gemini_api_pool_auth_token', AppState.authToken);
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('mainSection').classList.remove('hidden');
             showStatus('登录成功', 'success');
@@ -827,7 +827,7 @@ async function login() {
 }
 
 async function autoLogin() {
-    const savedToken = localStorage.getItem('gcli2api_auth_token');
+    const savedToken = localStorage.getItem('gemini_api_pool_auth_token');
     if (!savedToken) return false;
 
     AppState.authToken = savedToken;
@@ -848,7 +848,7 @@ async function autoLogin() {
             requestAnimationFrame(() => initTabSlider());
             return true;
         } else if (response.status === 401) {
-            localStorage.removeItem('gcli2api_auth_token');
+            localStorage.removeItem('gemini_api_pool_auth_token');
             AppState.authToken = '';
             return false;
         }
@@ -859,7 +859,7 @@ async function autoLogin() {
 }
 
 function logout() {
-    localStorage.removeItem('gcli2api_auth_token');
+    localStorage.removeItem('gemini_api_pool_auth_token');
     AppState.authToken = '';
     document.getElementById('loginSection').classList.remove('hidden');
     document.getElementById('mainSection').classList.add('hidden');
@@ -2471,7 +2471,7 @@ async function downloadLogs() {
 
         if (response.ok) {
             const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = 'gcli2api_logs.txt';
+            let filename = 'gemini_api_pool_logs.txt';
             if (contentDisposition) {
                 const match = contentDisposition.match(/filename=(.+)/);
                 if (match) filename = match[1];

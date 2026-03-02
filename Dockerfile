@@ -1,4 +1,4 @@
-# Multi-stage build for gcli2api
+# Multi-stage build for gemini-api-pool
 FROM python:3.13-slim as base
 
 # Set environment variables

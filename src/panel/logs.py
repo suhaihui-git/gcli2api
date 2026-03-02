@@ -76,7 +76,7 @@ async def download_logs(token: str = Depends(verify_panel_token)):
 
         # 生成文件名（包含时间戳）
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"gcli2api_logs_{timestamp}.txt"
+        filename = f"gemini_api_pool_logs_{timestamp}.txt"
 
         log.info(f"下载日志文件: {log_file_path}")
 

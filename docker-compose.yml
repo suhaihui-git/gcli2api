@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  gcli2api:
-    image: ghcr.io/su-kaka/gcli2api:latest
-    container_name: gcli2api
+  gemini-api-pool:
+    image: gemini-api-pool:latest
+    container_name: gemini-api-pool
     restart: unless-stopped
     network_mode: host
     environment:
@@ -30,7 +30,7 @@ services:
 
       # Optional: MongoDB configuration (for distributed storage)
       # - MONGODB_URI=${MONGODB_URI}
-      # - MONGODB_DATABASE=${MONGODB_DATABASE:-gcli2api}
+      # - MONGODB_DATABASE=${MONGODB_DATABASE:-gemini-api-pool}
 
       # Optional: PostgreSQL configuration (for distributed storage)
       # - POSTGRES_DSN=${POSTGRES_DSN}
@@ -49,7 +49,7 @@ services:
 # Example with Redis for distributed storage
 #  redis:
 #    image: redis:7-alpine
-#    container_name: gcli2api-redis
+#    container_name: gemini-api-pool-redis
 #    restart: unless-stopped
 #    ports:
 #      - "6379:6379"
@@ -65,7 +65,7 @@ services:
 # Example with MongoDB for distributed storage
 #  mongodb:
 #    image: mongo:7
-#    container_name: gcli2api-mongodb
+#    container_name: gemini-api-pool-mongodb
 #    restart: unless-stopped
 #    environment:
 #      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}

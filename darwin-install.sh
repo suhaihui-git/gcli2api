@@ -30,11 +30,11 @@ export PATH="$HOME/.local/bin:$PATH"
 if [ -f "./web.py" ]; then
     # 已经在目标目录
     :
-elif [ -f "./gcli2api/web.py" ]; then
-    cd ./gcli2api
+elif [ -f "./gemini-api-pool/web.py" ]; then
+    cd ./gemini-api-pool
 else
-    git clone https://github.com/su-kaka/gcli2api.git
-    cd ./gcli2api
+    git clone https://github.com/YOUR_USERNAME/gemini-api-pool.git
+    cd ./gemini-api-pool
 fi
 
 # 拉取最新代码

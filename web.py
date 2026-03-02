@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     global global_credential_manager
 
-    log.info("启动 GCLI2API 主服务")
+    log.info("启动 Gemini API Pool 主服务")
 
     # 初始化配置缓存（优先执行）
     try:
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # 清理资源
-    log.info("开始关闭 GCLI2API 主服务")
+    log.info("开始关闭 Gemini API Pool 主服务")
 
     # 首先关闭所有异步任务
     try:
@@ -79,12 +79,12 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             log.error(f"关闭凭证管理器时出错: {e}")
 
-    log.info("GCLI2API 主服务已停止")
+    log.info("Gemini API Pool 主服务已停止")
 
 
 # 创建FastAPI应用
 app = FastAPI(
-    title="GCLI2API",
+    title="Gemini API Pool",
     description="Gemini API proxy with OpenAI compatibility",
     version="2.0.0",
     lifespan=lifespan,
@@ -150,7 +150,7 @@ async def main():
     host = await get_server_host()
 
     log.info("=" * 60)
-    log.info("启动 GCLI2API")
+    log.info("启动 Gemini API Pool")
     log.info("=" * 60)
     log.info(f"控制面板: http://127.0.0.1:{port}")
     log.info("=" * 60)

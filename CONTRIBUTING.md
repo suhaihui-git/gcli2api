@@ -1,10 +1,10 @@
-# Contributing to gcli2api
+# Contributing to gemini-api-pool
 
-First off, thank you for considering contributing to gcli2api! It's people like you that make gcli2api such a great tool.
+First off, thank you for considering contributing to gemini-api-pool! It's people like you that make gemini-api-pool such a great tool.
 
 ## Code of Conduct
 
-This project is intended for personal learning and research purposes only. By participating, you are expected to uphold this code and respect the CNC-1.0 license restrictions on commercial use.
+This project is intended for personal learning and research purposes only. By participating, you are expected to uphold this code.
 
 ## How Can I Contribute?
 
@@ -47,8 +47,8 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/gcli2api.git
-cd gcli2api
+git clone https://github.com/YOUR_USERNAME/gemini-api-pool.git
+cd gemini-api-pool
 
 # Install development dependencies
 make install-dev
@@ -111,7 +111,7 @@ make lint
 ## Project Structure
 
 ```
-gcli2api/
+gemini-api-pool/
 ├── src/                    # Main source code
 │   ├── auth.py            # Authentication and OAuth
 │   ├── credential_manager.py  # Credential rotation
@@ -152,18 +152,10 @@ gcli2api/
 
 ## License
 
-By contributing to gcli2api, you agree that your contributions will be licensed under the CNC-1.0 license. This is a strict anti-commercial license - see [LICENSE](LICENSE) for details.
-
-### Important License Restrictions
-
-* ❌ No commercial use
-* ❌ No use by companies with revenue > $1M USD
-* ❌ No use by VC-backed or publicly traded companies
-* ✅ Personal learning, research, and educational use only
-* ✅ Open source integration (must follow same license)
+By contributing to gemini-api-pool, you agree that your contributions will be licensed under the same license as the project. See [LICENSE](LICENSE) for details.
 
 ## Questions?
 
 Feel free to open an issue with your question or reach out to the maintainers.
 
-Thank you for contributing! 🎉
+Thank you for contributing!

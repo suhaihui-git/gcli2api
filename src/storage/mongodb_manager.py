@@ -62,7 +62,7 @@ class MongoDBManager:
             if not mongodb_uri:
                 raise ValueError("MONGODB_URI environment variable not set")
 
-            database_name = os.getenv("MONGODB_DATABASE", "gcli2api")
+            database_name = os.getenv("MONGODB_DATABASE", "gemini_api_pool")
 
             self._client = AsyncIOMotorClient(mongodb_uri)
             self._db = self._client[database_name]

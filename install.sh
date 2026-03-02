@@ -233,22 +233,22 @@ fi
 log_info "Checking project directory..."
 if [ -f "./web.py" ]; then
     log_info "Already in target directory"
-elif [ -f "./gcli2api/web.py" ]; then
-    log_info "Changing to gcli2api directory"
-    cd ./gcli2api || exit 1
+elif [ -f "./gemini-api-pool/web.py" ]; then
+    log_info "Changing to gemini-api-pool directory"
+    cd ./gemini-api-pool || exit 1
 else
     log_info "Cloning repository..."
-    if [ -d "./gcli2api" ]; then
-        log_warn "gcli2api directory exists but web.py not found. Removing and re-cloning..."
-        rm -rf ./gcli2api
+    if [ -d "./gemini-api-pool" ]; then
+        log_warn "gemini-api-pool directory exists but web.py not found. Removing and re-cloning..."
+        rm -rf ./gemini-api-pool
     fi
     
-    if ! git clone https://github.com/su-kaka/gcli2api.git; then
+    if ! git clone https://github.com/YOUR_USERNAME/gemini-api-pool.git; then
         log_error "Failed to clone repository"
         exit 1
     fi
     
-    cd ./gcli2api || exit 1
+    cd ./gemini-api-pool || exit 1
 fi
 
 # Update repository if it's a git repo

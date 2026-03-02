@@ -1,36 +1,20 @@
-# GeminiCLI to API
+# Gemini API Pool
 
 **Convert GeminiCLI and Antigravity to OpenAI, GEMINI, and Claude API Compatible Interfaces**
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: CNC-1.0](https://img.shields.io/badge/License-CNC--1.0-red.svg)](../LICENSE)
-[![Docker](https://img.shields.io/badge/docker-available-blue.svg)](https://github.com/su-kaka/gcli2api/pkgs/container/gcli2api)
 
 [中文](../README.md) | English
 
-## 🚀 Quick Deploy
+## Quick Deploy
 
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/97VMEF?referralCode=su-kaka)
 ---
 
 ## ⚠️ License Declaration
 
-**This project is licensed under the Cooperative Non-Commercial License (CNC-1.0)**
+**This project uses a custom license.**
 
-This is a strict anti-commercial open source license. Please refer to the [LICENSE](../LICENSE) file for details.
-
-### ✅ Permitted Uses:
-- Personal learning, research, and educational purposes
-- Non-profit organization use
-- Open source project integration (must comply with the same license)
-- Academic research and publication
-
-### ❌ Prohibited Uses:
-- Any form of commercial use
-- Enterprise use with annual revenue exceeding $1 million
-- Venture capital-backed or publicly traded companies
-- Providing paid services or products
-- Commercial competitive use
+Please refer to the [LICENSE](../LICENSE) file for details.
 
 ---
 
@@ -203,12 +187,12 @@ All models have 1M context window capacity. Each credential file provides 1000 r
 
 **Initial Installation**
 ```bash
-curl -o termux-install.sh "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/termux-install.sh" && chmod +x termux-install.sh && ./termux-install.sh
+curl -o termux-install.sh "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/termux-install.sh" && chmod +x termux-install.sh && ./termux-install.sh
 ```
 
 **Restart Service**
 ```bash
-cd gcli2api
+cd gemini-api-pool
 bash termux-start.sh
 ```
 
@@ -216,7 +200,7 @@ bash termux-start.sh
 
 **Initial Installation**
 ```powershell
-iex (iwr "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/install.ps1" -UseBasicParsing).Content
+iex (iwr "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/install.ps1" -UseBasicParsing).Content
 ```
 
 **Restart Service**
@@ -226,12 +210,12 @@ Double-click to execute `start.bat`
 
 **Initial Installation**
 ```bash
-curl -o install.sh "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/install.sh" && chmod +x install.sh && ./install.sh
+curl -o install.sh "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/install.sh" && chmod +x install.sh && ./install.sh
 ```
 
 **Restart Service**
 ```bash
-cd gcli2api
+cd gemini-api-pool
 bash start.sh
 ```
 
@@ -240,10 +224,10 @@ bash start.sh
 **Docker Run Command**
 ```bash
 # Using universal password
-docker run -d --name gcli2api --network host -e PASSWORD=pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/su-kaka/gcli2api:latest
+docker run -d --name gemini-api-pool --network host -e PASSWORD=pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # Using separate passwords
-docker run -d --name gcli2api --network host -e API_PASSWORD=api_pwd -e PANEL_PASSWORD=panel_pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/su-kaka/gcli2api:latest
+docker run -d --name gemini-api-pool --network host -e API_PASSWORD=api_pwd -e PANEL_PASSWORD=panel_pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 **Docker Compose Run Command**
@@ -252,9 +236,9 @@ docker run -d --name gcli2api --network host -e API_PASSWORD=api_pwd -e PANEL_PA
     version: '3.8'
 
     services:
-      gcli2api:
-        image: ghcr.io/su-kaka/gcli2api:latest
-        container_name: gcli2api
+      gemini-api-pool:
+        image: ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
+        container_name: gemini-api-pool
         restart: unless-stopped
         network_mode: host
         environment:
@@ -330,7 +314,7 @@ docker run -d --name gcli2api --network host -e API_PASSWORD=api_pwd -e PANEL_PA
 
 ### 🌟 Storage Backend Support
 
-gcli2api supports two storage backends: **Local SQLite (Default)** and **MongoDB (Cloud Distributed Storage)**
+gemini-api-pool supports two storage backends: **Local SQLite (Default)** and **MongoDB (Cloud Distributed Storage)**
 
 ### 📁 Local SQLite Storage (Default)
 
@@ -359,7 +343,7 @@ export MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net"
 # MongoDB with authentication
 export MONGODB_URI="mongodb://admin:password@localhost:27017/admin"
 
-# Optional: Custom database name (default: gcli2api)
+# Optional: Custom database name (default: gemini-api-pool)
 export MONGODB_DATABASE="my_gcli_db"
 ```
 
@@ -372,18 +356,18 @@ python web.py
 **Docker Environment using MongoDB**
 ```bash
 # Single MongoDB deployment
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e MONGODB_URI="mongodb://mongodb:27017" \
   -e API_PASSWORD=your_password \
   --network your_network \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # Using MongoDB Atlas
-docker run -d --name gcli2api \
-  -e MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/gcli2api" \
+docker run -d --name gemini-api-pool \
+  -e MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/gemini-api-pool" \
   -e API_PASSWORD=your_password \
   -p 7861:7861 \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 **Docker Compose Example**
@@ -393,7 +377,7 @@ version: '3.8'
 services:
   mongodb:
     image: mongo:7
-    container_name: gcli2api-mongodb
+    container_name: gemini-api-pool-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
@@ -403,15 +387,15 @@ services:
     ports:
       - "27017:27017"
 
-  gcli2api:
-    image: ghcr.io/su-kaka/gcli2api:latest
-    container_name: gcli2api
+  gemini-api-pool:
+    image: ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
+    container_name: gemini-api-pool
     restart: unless-stopped
     depends_on:
       - mongodb
     environment:
       - MONGODB_URI=mongodb://admin:password123@mongodb:27017/admin
-      - MONGODB_DATABASE=gcli2api
+      - MONGODB_DATABASE=gemini-api-pool
       - API_PASSWORD=your_api_password
       - PORT=7861
     ports:
@@ -467,10 +451,10 @@ python mongodb_setup.py export
 export MONGODB_URI="mongodb://localhost:27017?maxPoolSize=10&serverSelectionTimeoutMS=5000"
 
 # Replica set configuration
-export MONGODB_URI="mongodb://host1:27017,host2:27017,host3:27017/gcli2api?replicaSet=myReplicaSet"
+export MONGODB_URI="mongodb://host1:27017,host2:27017,host3:27017/gemini-api-pool?replicaSet=myReplicaSet"
 
 # Read-write separation configuration
-export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryPreferred"
+export MONGODB_URI="mongodb://localhost:27017/gemini-api-pool?readPreference=secondaryPreferred"
 ```
 
 ## 🏗️ Technical Architecture
@@ -562,7 +546,7 @@ export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryP
 
 **Logging Configuration**
 - `LOG_LEVEL`: Log level (DEBUG/INFO/WARNING/ERROR, default: INFO)
-- `LOG_FILE`: Log file path (default: gcli2api.log)
+- `LOG_FILE`: Log file path (default: gemini-api-pool.log)
 
 **Storage Configuration**
 
@@ -572,24 +556,24 @@ export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryP
 
 **MongoDB Configuration (Optional Cloud Storage)**
 - `MONGODB_URI`: MongoDB connection string (enables MongoDB mode when set)
-- `MONGODB_DATABASE`: MongoDB database name (default: gcli2api)
+- `MONGODB_DATABASE`: MongoDB database name (default: gemini-api-pool)
 
 **Docker Usage Example**
 ```bash
 # Using universal password
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e PASSWORD=mypassword \
   -e PORT=11451 \
   -e GOOGLE_CREDENTIALS="$(cat credential.json | base64 -w 0)" \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # Using separate passwords
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e API_PASSWORD=my_api_password \
   -e PANEL_PASSWORD=my_panel_password \
   -e PORT=11451 \
   -e GOOGLE_CREDENTIALS="$(cat credential.json | base64 -w 0)" \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 Note: When credential environment variables are set, the system will prioritize using credentials from environment variables and ignore files in the `creds` directory.

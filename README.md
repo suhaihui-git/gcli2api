@@ -1,36 +1,20 @@
-# GeminiCLI to API
+# Gemini API Pool
 
 **将 GeminiCLI 和 Antigravity 转换为 OpenAI 、GEMINI 和 Claude API 兼容接口**
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: CNC-1.0](https://img.shields.io/badge/License-CNC--1.0-red.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-available-blue.svg)](https://github.com/su-kaka/gcli2api/pkgs/container/gcli2api)
 
 [English](docs/README_EN.md) | 中文
 
-## 🚀 快速部署
+## 快速部署
 
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/97VMEF?referralCode=su-kaka)
 ---
 
 ## ⚠️ 许可证声明
 
-**本项目采用 Cooperative Non-Commercial License (CNC-1.0)**
+**本项目采用自定义许可证**
 
-这是一个反商业化的严格开源协议，详情请查看 [LICENSE](LICENSE) 文件。
-
-### ✅ 允许的用途：
-- 个人学习、研究、教育用途
-- 非营利组织使用
-- 开源项目集成（需遵循相同协议）
-- 学术研究和论文发表
-
-### ❌ 禁止的用途：
-- 任何形式的商业使用
-- 年收入超过100万美元的企业使用
-- 风投支持或公开交易的公司使用  
-- 提供付费服务或产品
-- 商业竞争用途
+详情请查看 [LICENSE](LICENSE) 文件。
 
 ## 核心功能
 
@@ -201,12 +185,12 @@
 
 **初始安装**
 ```bash
-curl -o termux-install.sh "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/termux-install.sh" && chmod +x termux-install.sh && ./termux-install.sh
+curl -o termux-install.sh "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/termux-install.sh" && chmod +x termux-install.sh && ./termux-install.sh
 ```
 
 **重启服务**
 ```bash
-cd gcli2api
+cd gemini-api-pool
 bash termux-start.sh
 ```
 
@@ -214,7 +198,7 @@ bash termux-start.sh
 
 **初始安装**
 ```powershell
-iex (iwr "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/install.ps1" -UseBasicParsing).Content
+iex (iwr "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/install.ps1" -UseBasicParsing).Content
 ```
 
 **重启服务**
@@ -224,12 +208,12 @@ iex (iwr "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/i
 
 **初始安装**
 ```bash
-curl -o install.sh "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/install.sh" && chmod +x install.sh && ./install.sh
+curl -o install.sh "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/install.sh" && chmod +x install.sh && ./install.sh
 ```
 
 **重启服务**
 ```bash
-cd gcli2api
+cd gemini-api-pool
 bash start.sh
 ```
 
@@ -237,12 +221,12 @@ bash start.sh
 
 **初始安装**
 ```bash
-curl -o darwin-install.sh "https://raw.githubusercontent.com/su-kaka/gcli2api/refs/heads/master/darwin-install.sh" && chmod +x darwin-install.sh && ./darwin-install.sh
+curl -o darwin-install.sh "https://raw.githubusercontent.com/YOUR_USERNAME/gemini-api-pool/refs/heads/master/darwin-install.sh" && chmod +x darwin-install.sh && ./darwin-install.sh
 ```
 
 **重启服务**
 ```bash
-cd gcli2api
+cd gemini-api-pool
 bash start.sh
 ```
 
@@ -251,36 +235,36 @@ bash start.sh
 **Docker 运行命令**
 ```bash
 # 使用通用密码
-docker run -d --name gcli2api --network host -e PASSWORD=pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/su-kaka/gcli2api:latest
+docker run -d --name gemini-api-pool --network host -e PASSWORD=pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # 使用分离密码
-docker run -d --name gcli2api --network host -e API_PASSWORD=api_pwd -e PANEL_PASSWORD=panel_pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/su-kaka/gcli2api:latest
+docker run -d --name gemini-api-pool --network host -e API_PASSWORD=api_pwd -e PANEL_PASSWORD=panel_pwd -e PORT=7861 -v $(pwd)/data/creds:/app/creds ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 **Docker Mac**
 ```bash
 # 使用通用密码
 docker run -d \
-  --name gcli2api \
+  --name gemini-api-pool \
   -p 7861:7861 \
   -p 8080:8080 \
   -e PASSWORD=pwd \
   -e PORT=7861 \
   -v "$(pwd)/data/creds":/app/creds \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 ```bash
 # 使用分离密码
 docker run -d \
---name gcli2api \
+--name gemini-api-pool \
 -p 7861:7861 \
 -p 8080:8080 \
 -e API_PASSWORD=api_pwd \
 -e PANEL_PASSWORD=panel_pwd \
 -e PORT=7861 \
 -v $(pwd)/data/creds:/app/creds \
-ghcr.io/su-kaka/gcli2api:latest
+ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 **Docker Compose 运行命令**
@@ -289,9 +273,9 @@ ghcr.io/su-kaka/gcli2api:latest
     version: '3.8'
 
     services:
-      gcli2api:
-        image: ghcr.io/su-kaka/gcli2api:latest
-        container_name: gcli2api
+      gemini-api-pool:
+        image: ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
+        container_name: gemini-api-pool
         restart: unless-stopped
         network_mode: host
         environment:
@@ -367,7 +351,7 @@ ghcr.io/su-kaka/gcli2api:latest
 
 ### 🌟 存储后端支持
 
-gcli2api 支持两种存储后端：**本地 SQLite（默认）** 和 **MongoDB（云端分布式存储）**
+gemini-api-pool 支持两种存储后端：**本地 SQLite（默认）** 和 **MongoDB（云端分布式存储）**
 
 ### 📁 本地 SQLite 存储（默认）
 
@@ -396,7 +380,7 @@ export MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net"
 # 带认证的 MongoDB
 export MONGODB_URI="mongodb://admin:password@localhost:27017/admin"
 
-# 可选：自定义数据库名称（默认: gcli2api）
+# 可选：自定义数据库名称（默认: gemini-api-pool）
 export MONGODB_DATABASE="my_gcli_db"
 ```
 
@@ -409,18 +393,18 @@ python web.py
 **Docker 环境使用 MongoDB**
 ```bash
 # 单机 MongoDB 部署
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e MONGODB_URI="mongodb://mongodb:27017" \
   -e API_PASSWORD=your_password \
   --network your_network \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # 使用 MongoDB Atlas
-docker run -d --name gcli2api \
-  -e MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/gcli2api" \
+docker run -d --name gemini-api-pool \
+  -e MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/gemini-api-pool" \
   -e API_PASSWORD=your_password \
   -p 7861:7861 \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 **Docker Compose 示例**
@@ -430,7 +414,7 @@ version: '3.8'
 services:
   mongodb:
     image: mongo:7
-    container_name: gcli2api-mongodb
+    container_name: gemini-api-pool-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
@@ -440,15 +424,15 @@ services:
     ports:
       - "27017:27017"
 
-  gcli2api:
-    image: ghcr.io/su-kaka/gcli2api:latest
-    container_name: gcli2api
+  gemini-api-pool:
+    image: ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
+    container_name: gemini-api-pool
     restart: unless-stopped
     depends_on:
       - mongodb
     environment:
       - MONGODB_URI=mongodb://admin:password123@mongodb:27017/admin
-      - MONGODB_DATABASE=gcli2api
+      - MONGODB_DATABASE=gemini-api-pool
       - API_PASSWORD=your_api_password
       - PORT=7861
     ports:
@@ -467,10 +451,10 @@ volumes:
 export MONGODB_URI="mongodb://localhost:27017?maxPoolSize=10&serverSelectionTimeoutMS=5000"
 
 # 副本集配置
-export MONGODB_URI="mongodb://host1:27017,host2:27017,host3:27017/gcli2api?replicaSet=myReplicaSet"
+export MONGODB_URI="mongodb://host1:27017,host2:27017,host3:27017/gemini-api-pool?replicaSet=myReplicaSet"
 
 # 读写分离配置
-export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryPreferred"
+export MONGODB_URI="mongodb://localhost:27017/gemini-api-pool?readPreference=secondaryPreferred"
 ```
 
 ## 🏗️ 技术架构
@@ -562,7 +546,7 @@ export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryP
 
 **日志配置**
 - `LOG_LEVEL`: 日志级别（DEBUG/INFO/WARNING/ERROR，默认：INFO）
-- `LOG_FILE`: 日志文件路径（默认：gcli2api.log）
+- `LOG_FILE`: 日志文件路径（默认：gemini-api-pool.log）
 
 **存储配置**
 
@@ -572,22 +556,22 @@ export MONGODB_URI="mongodb://localhost:27017/gcli2api?readPreference=secondaryP
 
 **MongoDB 配置（可选云端存储）**
 - `MONGODB_URI`: MongoDB 连接字符串（设置后启用 MongoDB 模式）
-- `MONGODB_DATABASE`: MongoDB 数据库名称（默认：gcli2api）
+- `MONGODB_DATABASE`: MongoDB 数据库名称（默认：gemini-api-pool）
 
 **Docker 使用示例**
 ```bash
 # 使用通用密码
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e PASSWORD=mypassword \
   -e PORT=7861 \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 
 # 使用分离密码
-docker run -d --name gcli2api \
+docker run -d --name gemini-api-pool \
   -e API_PASSWORD=my_api_password \
   -e PANEL_PASSWORD=my_panel_password \
   -e PORT=7861 \
-  ghcr.io/su-kaka/gcli2api:latest
+  ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 ```
 
 注意：当设置了凭证环境变量时，系统将优先使用环境变量中的凭证，忽略 `creds` 目录中的文件。
@@ -929,14 +913,6 @@ export COMPATIBILITY_MODE=true
 此模式下，所有 `system` 消息会转换为 `user` 消息，提高与某些客户端的兼容性。
 
 ---
-
-## 💬 交流群
-
-欢迎加入 QQ 群交流讨论！
-
-**QQ 群号：937681997**
-
-<img src="docs/qq群.jpg" width="200" alt="QQ群二维码">
 
 ---
 
