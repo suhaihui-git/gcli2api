@@ -1495,3 +1495,106 @@ async def test_credential(
     except Exception as e:
         log.error(f"测试凭证失败 {filename}: {e}")
         raise HTTPException(status_code=500, detail=f"测试失败: {str(e)}")
+
+
+@router.post("/chat/{filename}")
+async def chat_with_credential(
+    filename: str,
+    mode: str = "geminicli",
+    _token: str = Depends(verify_panel_token),
+    body: dict = None,
+):
+    """
+    使用指定凭证进行对话测试
+
+    Args:
+        filename: 凭证文件名
+        mode: 凭证模式（geminicli 或 antigravity）
+        body: {"model": "gemini-2.5-flash", "message": "你好"}
+    """
+    try:
+        mode = validate_mode(mode)
+
+        if not body or not body.get("message"):
+            raise HTTPException(status_code=400, detail="请输入消息内容")
+
+        model = body.get("model", "gemini-2.5-flash")
+        message = body.get("message", "")
+
+        if not filename.endswith(".json"):
+            raise HTTPException(status_code=400, detail="无效的文件名")
+
+        storage_adapter = await get_storage_adapter()
+        credential_data = await storage_adapter.get_credential(filename, mode=mode)
+        if not credential_data:
+            raise HTTPException(status_code=404, detail="凭证不存在")
+
+        credentials = Credentials.from_dict(credential_data)
+        token_refreshed = await credentials.refresh_if_needed()
+        if token_refreshed:
+            credential_data = credentials.to_dict()
+            await storage_adapter.store_credential(filename, credential_data, mode=mode)
+
+        access_token = credential_data.get("access_token") or credential_data.get("token")
+        if not access_token:
+            raise HTTPException(status_code=400, detail="凭证中没有访问令牌")
+
+        project_id = credential_data.get("project_id", "")
+        if not project_id:
+            raise HTTPException(status_code=400, detail="凭证中没有项目ID")
+
+        from src.httpx_client import post_async
+
+        if mode == "antigravity":
+            api_base_url = await get_antigravity_api_url()
+            from src.api.antigravity import build_antigravity_headers
+            headers = build_antigravity_headers(access_token, model)
+        else:
+            api_base_url = await get_code_assist_endpoint()
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "User-Agent": GEMINICLI_USER_AGENT,
+            }
+
+        response = await post_async(
+            url=f"{api_base_url}/v1internal:generateContent",
+            json={
+                "model": model,
+                "project": project_id,
+                "request": {
+                    "contents": [{"role": "user", "parts": [{"text": message}]}],
+                    "generationConfig": {"maxOutputTokens": 8192}
+                }
+            },
+            headers=headers,
+            timeout=60.0
+        )
+
+        status_code = response.status_code
+
+        if status_code == 200:
+            try:
+                data = response.json()
+                # 提取文本内容
+                text = ""
+                candidates = data.get("response", data).get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        if "text" in part:
+                            text += part["text"]
+                return JSONResponse(content={"success": True, "text": text})
+            except Exception:
+                return JSONResponse(content={"success": True, "text": response.text})
+        else:
+            return JSONResponse(
+                status_code=status_code,
+                content={"success": False, "error": response.text}
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"凭证对话失败 {filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")

@@ -464,6 +464,11 @@ function createUploadManager(type) {
                             showStatus(`成功上传 ${data.uploaded_count} 个${type === 'antigravity' ? 'Antigravity' : ''}文件`, 'success');
                             this.clearFiles();
                             progressSection.classList.add('hidden');
+                            if (type === 'antigravity') {
+                                AppState.antigravityCreds.refresh();
+                            } else {
+                                AppState.creds.refresh();
+                            }
                         } catch (e) {
                             showStatus('上传失败: 服务器响应格式错误', 'error');
                         }
@@ -689,6 +694,7 @@ function createCredCard(credInfo, manager) {
         ${managerType !== 'antigravity' ? `<button class="cred-btn" style="background-color: #00bcd4;" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">设置预览</button>` : ''}
         <button class="cred-btn" style="background-color: #ff9800;" onclick="verify${managerType === 'antigravity' ? 'Antigravity' : ''}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>
         <button class="cred-btn" style="background-color: #9c27b0;" onclick="test${managerType === 'antigravity' ? 'Antigravity' : ''}Credential('${filename}')" title="测试凭证是否可用">消息测试</button>
+        <button class="cred-btn" style="background-color: #2196f3;" onclick="showChatModal('${filename}', '${managerType}')" title="使用该凭证进行对话">对话</button>
         <button class="cred-btn" style="background-color: #e91e63;" onclick="toggle${managerType === 'antigravity' ? 'Antigravity' : ''}ErrorDetails('${pathId}')" title="查看该凭证的详细报错信息">查看报错</button>
         <button class="cred-btn delete" data-filename="${filename}" data-action="delete">删除</button>
     `;
@@ -1628,6 +1634,89 @@ async function verifyAntigravityProjectId(filename) {
     }
 }
 
+function showChatModal(filename, managerType) {
+    const isAntigravity = managerType === 'antigravity';
+    const modeParam = isAntigravity ? '?mode=antigravity' : '?mode=geminicli';
+    const models = isAntigravity
+        ? ['claude-opus-4-6', 'gemini-3-flash', 'gemini-3.1-pro-preview']
+        : ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
+
+    const modal = document.createElement('div');
+    modal.className = 'message-modal-overlay';
+    modal.innerHTML = `
+        <div class="message-modal" style="max-width:600px;width:90%;">
+            <div class="message-modal-header">
+                <h3>凭证对话 - ${filename}</h3>
+                <button class="message-modal-close" onclick="this.closest('.message-modal-overlay').remove()">&times;</button>
+            </div>
+            <div class="message-modal-body" style="padding:16px 20px;">
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--text-secondary);">模型</label>
+                    <select id="chatModelSelect" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text-primary);font-size:14px;">
+                        ${models.map(m => `<option value="${m}">${m}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--text-secondary);">消息内容</label>
+                    <textarea id="chatMessageInput" rows="4" placeholder="输入消息内容..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text-primary);font-size:14px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>
+                </div>
+                <div id="chatResultArea" style="display:none;margin-top:12px;">
+                    <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--text-secondary);">响应结果</label>
+                    <div id="chatResultContent" style="padding:12px;border-radius:8px;background:var(--bg-secondary, #f5f5f7);color:var(--text-primary);font-size:13px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto;border:1px solid var(--border);"></div>
+                </div>
+            </div>
+            <div class="message-modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+                <button class="message-modal-btn" style="background:var(--text-tertiary);" onclick="this.closest('.message-modal-overlay').remove()">关闭</button>
+                <button class="message-modal-btn" id="chatSendBtn" onclick="sendChatMessage('${filename}', '${modeParam}')">发送</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    const escHandler = e => { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', escHandler); } };
+    document.addEventListener('keydown', escHandler);
+    document.getElementById('chatMessageInput').focus();
+}
+
+async function sendChatMessage(filename, modeParam) {
+    const model = document.getElementById('chatModelSelect').value;
+    const message = document.getElementById('chatMessageInput').value.trim();
+    const sendBtn = document.getElementById('chatSendBtn');
+    const resultArea = document.getElementById('chatResultArea');
+    const resultContent = document.getElementById('chatResultContent');
+
+    if (!message) {
+        showStatus('请输入消息内容', 'error');
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = '发送中...';
+    resultArea.style.display = 'block';
+    resultContent.textContent = '正在等待响应...';
+
+    try {
+        const response = await fetch(`./creds/chat/${encodeURIComponent(filename)}${modeParam}`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ model, message })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultContent.textContent = data.text || '(空响应)';
+        } else {
+            resultContent.textContent = `错误 (${response.status}): ${data.error || data.detail || '未知错误'}`;
+        }
+    } catch (error) {
+        resultContent.textContent = `请求失败: ${error.message}`;
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '发送';
+    }
+}
+
 async function testCredential(filename) {
     try {
         // 显示加载状态
@@ -1787,7 +1876,7 @@ async function toggleAntigravityQuotaDetails(pathId) {
 
         // 每次展开都重新加载数据
         if (filename) {
-            contentDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">📊 正在加载额度信息...</div>';
+            contentDiv.innerHTML = '<div style="text-align: center; padding: 16px; color: var(--text-secondary, #86868b);">正在加载额度信息...</div>';
 
             try {
                 const response = await fetch(`./creds/quota/${encodeURIComponent(filename)}?mode=antigravity`, {
@@ -1802,52 +1891,37 @@ async function toggleAntigravityQuotaDetails(pathId) {
 
                     if (Object.keys(models).length === 0) {
                         contentDiv.innerHTML = `
-                            <div style="text-align: center; padding: 16px; color: #999;">
-                                <div>暂无额度信息</div>
+                            <div style="text-align: center; padding: 16px; color: var(--text-secondary, #86868b);">
+                                暂无额度信息
                             </div>
                         `;
                     } else {
-                        let quotaHTML = `
-                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px 8px 0 0; margin: -10px -10px 15px -10px;">
-                                <h4 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 20px;">📊</span>
-                                    <span>额度信息详情</span>
-                                </h4>
-                                <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">文件: ${filename}</div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
-                        `;
+                        let quotaHTML = '<div class="quota-header">额度信息</div><div class="quota-grid">';
 
                         for (const [modelName, quotaData] of Object.entries(models)) {
-                            // 后端返回的是剩余比例 (0-1)，不是绝对数量
                             const remainingFraction = quotaData.remaining || 0;
-                            const resetTime = quotaData.resetTime || 'N/A';
+                            const resetTime = quotaData.resetTime || '';
 
-                            // 计算已使用百分比（1 - 剩余比例）
                             const usedPercentage = Math.round((1 - remainingFraction) * 100);
                             const remainingPercentage = Math.round(remainingFraction * 100);
 
-                            // 根据使用情况选择颜色
-                            let percentageColor = '#28a745'; // 绿色：使用少
-                            if (usedPercentage >= 90) percentageColor = '#dc3545'; // 红色：使用多
-                            else if (usedPercentage >= 70) percentageColor = '#ffc107'; // 黄色：使用较多
-                            else if (usedPercentage >= 50) percentageColor = '#17a2b8'; // 蓝色：使用中等
+                            let barColor = '#34c759';
+                            if (usedPercentage >= 90) barColor = '#ff3b30';
+                            else if (usedPercentage >= 70) barColor = '#ff9500';
+                            else if (usedPercentage >= 50) barColor = '#007aff';
 
                             quotaHTML += `
-                                <div style="background: white; border-left: 4px solid ${percentageColor}; border-radius: 4px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                        <div style="font-weight: bold; color: #333; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px;" title="${modelName} - 剩余${remainingPercentage}% - ${resetTime}">
-                                            ${modelName}
-                                        </div>
-                                        <div style="font-size: 13px; font-weight: bold; color: ${percentageColor}; white-space: nowrap;">
-                                            ${remainingPercentage}%
-                                        </div>
+                                <div class="quota-model-item">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div class="quota-model-name" title="${modelName}">${modelName}</div>
+                                        <span class="quota-remaining" style="color: ${barColor}; font-size: 13px;">${remainingPercentage}%</span>
                                     </div>
-                                    <div style="width: 100%; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
-                                        <div style="width: ${usedPercentage}%; height: 100%; background-color: ${percentageColor}; transition: width 0.3s ease;"></div>
+                                    <div class="quota-bar-bg">
+                                        <div class="quota-bar-fill" style="width: ${usedPercentage}%; background-color: ${barColor};"></div>
                                     </div>
-                                    <div style="font-size: 10px; color: #666; text-align: right;">
-                                        ${resetTime !== 'N/A' ? '🔄 ' + resetTime : ''}
+                                    <div class="quota-meta">
+                                        <span>已使用 ${usedPercentage}%</span>
+                                        ${resetTime ? '<span>重置: ' + resetTime + '</span>' : ''}
                                     </div>
                                 </div>
                             `;
@@ -1857,7 +1931,7 @@ async function toggleAntigravityQuotaDetails(pathId) {
                         contentDiv.innerHTML = quotaHTML;
                     }
 
-                    showStatus('✅ 成功加载额度信息', 'success');
+                    showStatus('成功加载额度信息', 'success');
                 } else {
                     // 失败时显示错误
                     const errorMsg = data.error || '获取额度信息失败';
