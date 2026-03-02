@@ -622,6 +622,60 @@
         .status-badge.enabled { background: var(--success); }
         .status-badge.disabled { background: var(--text-tertiary); }
 
+        .error-codes {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            max-width: 100%;
+        }
+
+        .error-code-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 26px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 700;
+            border: 1px solid transparent;
+            background: rgba(142, 142, 147, 0.14);
+            color: var(--text-secondary);
+        }
+
+        .error-code-chip.high {
+            background: rgba(255, 59, 48, 0.14);
+            color: #d70015;
+            border-color: rgba(215, 0, 21, 0.25);
+        }
+
+        .error-code-chip.medium {
+            background: rgba(255, 149, 0, 0.14);
+            color: #b35f00;
+            border-color: rgba(179, 95, 0, 0.22);
+        }
+
+        .error-code-chip.low {
+            background: rgba(0, 122, 255, 0.12);
+            color: #0055cc;
+            border-color: rgba(0, 85, 204, 0.2);
+        }
+
+        .error-code-chip.unknown {
+            background: rgba(142, 142, 147, 0.14);
+            color: var(--text-secondary);
+            border-color: rgba(142, 142, 147, 0.22);
+        }
+
+        .error-code-chip.more {
+            background: rgba(142, 142, 147, 0.16);
+            color: var(--text-tertiary);
+            border-color: rgba(142, 142, 147, 0.26);
+        }
+
         .cooldown-badge {
             padding: 2px 8px;
             border-radius: 10px;
@@ -1257,7 +1311,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
                 <div id="antigravityTab" class="tab-content"></div>
 

@@ -632,8 +632,47 @@ function createCredCard(credInfo, manager) {
         : '<span class="status-badge enabled">已启用</span>';
 
     if (status.error_codes && status.error_codes.length > 0) {
-        statusBadges += `<span class="error-codes">错误码: ${status.error_codes.join(', ')}</span>`;
-        const autoBan = status.error_codes.filter(c => c === 400 || c === 403);
+        const errorCodeCounter = {};
+        status.error_codes.forEach(code => {
+            const key = String(code).trim();
+            if (!key) return;
+            errorCodeCounter[key] = (errorCodeCounter[key] || 0) + 1;
+        });
+
+        const sortedErrorCodes = Object.keys(errorCodeCounter).sort((a, b) => {
+            const na = Number(a);
+            const nb = Number(b);
+            if (Number.isNaN(na) || Number.isNaN(nb)) return a.localeCompare(b);
+            return na - nb;
+        });
+
+        const getErrorCodeLevel = (code) => {
+            const num = Number(code);
+            if (Number.isNaN(num)) return 'unknown';
+            if (num >= 500 || num === 400 || num === 403) return 'high';
+            if (num === 429 || num === 401 || num === 404) return 'medium';
+            return 'low';
+        };
+
+        const maxVisibleCodes = 4;
+        const visibleCodes = sortedErrorCodes.slice(0, maxVisibleCodes);
+        const hiddenCount = sortedErrorCodes.length - visibleCodes.length;
+
+        let errorCodesHtml = '<span class="error-codes" title="错误码: ' + sortedErrorCodes.join(', ') + '">';
+        visibleCodes.forEach(code => {
+            const count = errorCodeCounter[code];
+            const level = getErrorCodeLevel(code);
+            const countSuffix = count > 1 ? `×${count}` : '';
+            errorCodesHtml += `<span class="error-code-chip ${level}">${code}${countSuffix}</span>`;
+        });
+        if (hiddenCount > 0) {
+            errorCodesHtml += `<span class="error-code-chip more">+${hiddenCount}</span>`;
+        }
+        errorCodesHtml += '</span>';
+
+        statusBadges += errorCodesHtml;
+
+        const autoBan = status.error_codes.filter(c => Number(c) === 400 || Number(c) === 403);
         if (autoBan.length > 0 && status.disabled) {
             statusBadges += '<span class="status-badge" style="background-color: #e74c3c; color: white;">AUTO_BAN</span>';
         }
