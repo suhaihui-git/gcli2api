@@ -114,9 +114,8 @@ function createCredsManager(type) {
                 const errorCodeFilter = this.currentErrorCodeFilter || 'all';
                 const cooldownFilter = this.currentCooldownFilter || 'all';
                 const previewFilter = this.currentPreviewFilter || 'all';
-                const response = await fetch(
-                    `${this.getEndpoint('status')}?offset=${offset}&limit=${this.pageSize}&status_filter=${this.currentStatusFilter}&error_code_filter=${errorCodeFilter}&cooldown_filter=${cooldownFilter}&preview_filter=${previewFilter}&${this.getModeParam()}`,
-                    { headers: getAuthHeaders() }
+                const response = await authFetch(
+                    `${this.getEndpoint('status')}?offset=${offset}&limit=${this.pageSize}&status_filter=${this.currentStatusFilter}&error_code_filter=${errorCodeFilter}&cooldown_filter=${cooldownFilter}&preview_filter=${previewFilter}&${this.getModeParam()}`
                 );
 
                 const data = await response.json();
@@ -159,7 +158,7 @@ function createCredsManager(type) {
                     showStatus(`加载失败: ${data.detail || data.error || '未知错误'}`, 'error');
                 }
             } catch (error) {
-                showStatus(`网络错误: ${error.message}`, 'error');
+                if (error.message !== 'AUTH_EXPIRED') showStatus(`网络错误: ${error.message}`, 'error');
             } finally {
                 loading.style.display = 'none';
             }
@@ -301,9 +300,8 @@ function createCredsManager(type) {
         // 凭证操作
         async action(filename, action) {
             try {
-                const response = await fetch(`${this.getEndpoint('action')}?${this.getModeParam()}`, {
+                const response = await authFetch(`${this.getEndpoint('action')}?${this.getModeParam()}`, {
                     method: 'POST',
-                    headers: getAuthHeaders(),
                     body: JSON.stringify({ filename, action })
                 });
 
@@ -339,9 +337,8 @@ function createCredsManager(type) {
             try {
                 showStatus(`正在执行批量${actionNames[action]}操作...`, 'info');
 
-                const response = await fetch(`${this.getEndpoint('batchAction')}?${this.getModeParam()}`, {
+                const response = await authFetch(`${this.getEndpoint('batchAction')}?${this.getModeParam()}`, {
                     method: 'POST',
-                    headers: getAuthHeaders(),
                     body: JSON.stringify({ action, filenames: selectedFiles })
                 });
 
@@ -626,6 +623,20 @@ function getAuthHeaders() {
     };
 }
 
+async function authFetch(url, options = {}) {
+    if (!options.headers) options.headers = getAuthHeaders();
+    const response = await fetch(url, options);
+    if (response.status === 401) {
+        localStorage.removeItem('gemini_api_pool_auth_token');
+        AppState.authToken = '';
+        document.getElementById('loginSection').classList.remove('hidden');
+        document.getElementById('mainSection').classList.add('hidden');
+        showStatus('登录已过期，请重新登录', 'error');
+        throw new Error('AUTH_EXPIRED');
+    }
+    return response;
+}
+
 function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
@@ -853,7 +864,7 @@ async function toggleCredDetailsCommon(pathId, manager) {
                 const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : manager.type === 'codex' ? 'mode=codex' : 'mode=geminicli';
                 const endpoint = `./creds/detail/${encodeURIComponent(filename)}?${modeParam}`;
 
-                const response = await fetch(endpoint, { headers: getAuthHeaders() });
+                const response = await authFetch(endpoint);
 
                 const data = await response.json();
                 if (response.ok && data.content) {
@@ -863,6 +874,7 @@ async function toggleCredDetailsCommon(pathId, manager) {
                     contentDiv.textContent = '无法加载文件内容: ' + (data.error || data.detail || '未知错误');
                 }
             } catch (error) {
+                if (error.message === 'AUTH_EXPIRED') return;
                 contentDiv.textContent = '加载文件内容失败: ' + error.message;
             }
         }
