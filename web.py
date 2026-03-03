@@ -25,6 +25,9 @@ from src.router.geminicli.openai import router as geminicli_openai_router
 from src.router.geminicli.gemini import router as geminicli_gemini_router
 from src.router.geminicli.anthropic import router as geminicli_anthropic_router
 from src.router.geminicli.model_list import router as geminicli_model_list_router
+from src.router.codex.openai import router as codex_openai_router
+from src.router.codex.anthropic import router as codex_anthropic_router
+from src.router.codex.model_list import router as codex_model_list_router
 from src.task_manager import shutdown_all_tasks
 from src.panel import router as panel_router
 
@@ -124,6 +127,11 @@ app.include_router(antigravity_anthropic_router, prefix="", tags=["Antigravity A
 # Geminicli Anthropic Messages 路由 - Anthropic Messages 格式兼容 (Geminicli)
 app.include_router(geminicli_anthropic_router, prefix="", tags=["Geminicli Anthropic Messages"])
 
+# Codex 路由 - 通过 OpenAI Codex Responses API 转发
+app.include_router(codex_openai_router, prefix="", tags=["Codex OpenAI API"])
+app.include_router(codex_anthropic_router, prefix="", tags=["Codex Anthropic Messages"])
+app.include_router(codex_model_list_router, prefix="", tags=["Codex Model List"])
+
 # Panel路由 - 包含认证、凭证管理和控制面板功能
 app.include_router(panel_router, prefix="", tags=["Panel Interface"])
 
@@ -159,6 +167,9 @@ async def main():
     log.info(f"   Antigravity (OpenAI格式): http://127.0.0.1:{port}/antigravity/v1")
     log.info(f"   Antigravity (Claude格式): http://127.0.0.1:{port}/antigravity/v1")
     log.info(f"   Antigravity (Gemini格式): http://127.0.0.1:{port}/antigravity")
+
+    log.info(f"   Codex (OpenAI格式): http://127.0.0.1:{port}/codex/v1")
+    log.info(f"   Codex (Claude格式): http://127.0.0.1:{port}/codex/v1")
 
     # 配置hypercorn
     config = Config()

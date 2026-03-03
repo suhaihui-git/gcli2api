@@ -192,8 +192,20 @@ function createCredsManager(type) {
             const entries = Object.entries(this.filteredData);
 
             if (entries.length === 0) {
-                const msg = this.totalCount === 0 ? '暂无凭证文件' : '当前筛选条件下暂无数据';
-                list.innerHTML = `<p style="text-align: center; color: #666;">${msg}</p>`;
+                const isEmptyTotal = this.totalCount === 0;
+                const icon = isEmptyTotal
+                    ? `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`
+                    : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+                const title = isEmptyTotal ? '暂无凭证文件' : '无匹配结果';
+                const subtitle = isEmptyTotal ? '点击上方「添加凭证」按钮开始添加' : '当前筛选条件下暂无数据，请调整筛选条件';
+                list.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#86868b;">
+                        <div style="width:80px;height:80px;border-radius:50%;background:#f5f5f7;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+                            ${icon}
+                        </div>
+                        <div style="font-size:16px;font-weight:600;color:#1d1d1f;margin-bottom:6px;">${title}</div>
+                        <div style="font-size:13px;color:#86868b;">${subtitle}</div>
+                    </div>`;
                 document.getElementById(this.getElementId('PaginationContainer')).style.display = 'none';
                 return;
             }
