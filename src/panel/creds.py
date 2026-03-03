@@ -154,6 +154,8 @@ async def upload_credentials_common(
                 # 根据凭证类型调用不同的添加方法
                 if mode == "antigravity":
                     await credential_manager.add_antigravity_credential(filename, credential_data)
+                elif mode == "codex":
+                    await credential_manager.add_codex_credential(filename, credential_data)
                 else:
                     await credential_manager.add_credential(filename, credential_data)
 
@@ -282,7 +284,13 @@ async def get_creds_status_common(
 async def download_all_creds_common(mode: str = "geminicli") -> Response:
     """打包下载所有凭证文件的通用函数"""
     mode = validate_mode(mode)
-    zip_filename = "antigravity_credentials.zip" if mode == "antigravity" else "credentials.zip"
+    zip_filename = (
+        "antigravity_credentials.zip"
+        if mode == "antigravity"
+        else "codex_credentials.zip"
+        if mode == "codex"
+        else "credentials.zip"
+    )
 
     storage_adapter = await get_storage_adapter()
     credential_filenames = await storage_adapter.list_credentials(mode=mode)
@@ -1303,6 +1311,173 @@ async def configure_preview_channel(
         raise HTTPException(status_code=500, detail=f"配置失败: {str(e)}")
 
 
+# =====================================================================
+# Codex 凭证测试/对话辅助函数
+# =====================================================================
+
+async def _ensure_codex_token(filename: str, credential_data: dict, storage_adapter) -> dict:
+    """确保Codex凭证的access_token有效，必要时刷新"""
+    from datetime import datetime, timezone
+
+    expired_str = credential_data.get("expired")
+    if expired_str:
+        try:
+            expired_dt = datetime.fromisoformat(expired_str)
+            if expired_dt.tzinfo is None:
+                expired_dt = expired_dt.replace(tzinfo=timezone.utc)
+            if expired_dt <= datetime.now(timezone.utc):
+                log.info(f"Codex token已过期，尝试刷新: {filename}")
+                refreshed = await credential_manager._refresh_codex_token(credential_data, filename)
+                if refreshed:
+                    return refreshed
+                raise Exception("Codex token已过期且刷新失败")
+        except ValueError:
+            pass
+    return credential_data
+
+
+async def _test_codex_credential(filename: str, credential_data: dict, storage_adapter) -> JSONResponse:
+    """使用Codex API测试凭证"""
+    from config import get_codex_api_url
+    from src.api.codex import build_codex_headers, _extract_codex_creds
+
+    credential_data = await _ensure_codex_token(filename, credential_data, storage_adapter)
+
+    access_token, account_id, is_oauth = _extract_codex_creds(credential_data)
+    if not access_token:
+        raise HTTPException(status_code=400, detail="凭证中没有访问令牌")
+
+    headers = build_codex_headers(
+        access_token=access_token,
+        account_id=account_id,
+        is_stream=False,
+        is_oauth=is_oauth,
+    )
+
+    codex_api_url = await get_codex_api_url()
+    target_url = f"{codex_api_url.rstrip('/')}/responses/compact"
+
+    from src.httpx_client import post_async
+
+    response = await post_async(
+        url=target_url,
+        json={
+            "model": "gpt-5.3-codex",
+            "instructions": "",
+            "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        },
+        headers=headers,
+        timeout=30.0,
+    )
+
+    status_code = response.status_code
+
+    if status_code == 200 or status_code == 429:
+        log.info(f"Codex凭证测试成功: {filename} (status={status_code})")
+        if status_code == 200:
+            await storage_adapter.update_credential_state(filename, {
+                "error_codes": [],
+                "error_messages": {},
+            }, mode="codex")
+
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": True, "status_code": status_code, "message": "测试成功", "filename": filename},
+        )
+    else:
+        log.warning(f"Codex凭证测试失败: {filename} (status={status_code})")
+        error_text = response.text if hasattr(response, "text") else ""
+        try:
+            await storage_adapter.update_credential_state(filename, {
+                "error_codes": [status_code],
+                "error_messages": {str(status_code): error_text or f"HTTP {status_code}"},
+            }, mode="codex")
+        except Exception as e:
+            log.error(f"保存Codex测试错误信息失败: {e}")
+
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "status_code": status_code, "message": f"测试失败: HTTP {status_code}", "error": error_text, "filename": filename},
+        )
+
+
+async def _chat_codex_credential(filename: str, credential_data: dict, storage_adapter, model: str, message: str) -> JSONResponse:
+    """使用Codex API进行对话测试"""
+    from config import get_codex_api_url
+    from src.api.codex import build_codex_headers, _extract_codex_creds
+    from src.converter.openai2codex import parse_model_thinking_suffix
+
+    credential_data = await _ensure_codex_token(filename, credential_data, storage_adapter)
+
+    access_token, account_id, is_oauth = _extract_codex_creds(credential_data)
+    if not access_token:
+        raise HTTPException(status_code=400, detail="凭证中没有访问令牌")
+
+    headers = build_codex_headers(
+        access_token=access_token,
+        account_id=account_id,
+        is_stream=False,
+        is_oauth=is_oauth,
+    )
+
+    # 解析模型名中的思考等级后缀
+    base_model, thinking_level = parse_model_thinking_suffix(model)
+    effort = thinking_level if thinking_level else "medium"
+
+    codex_api_url = await get_codex_api_url()
+    target_url = f"{codex_api_url.rstrip('/')}/responses/compact"
+
+    codex_body = {
+        "model": base_model,
+        "instructions": "",
+        "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": message}]}],
+    }
+    if effort != "none":
+        codex_body["reasoning"] = {"effort": effort, "summary": "auto"}
+
+    from src.httpx_client import post_async
+
+    log.info(f"[Codex Chat] 发送请求: model={base_model}, effort={effort}, file={filename}")
+
+    response = await post_async(
+        url=target_url,
+        json=codex_body,
+        headers=headers,
+        timeout=60.0,
+    )
+
+    status_code = response.status_code
+    log.info(f"[Codex Chat] 响应状态: {status_code}, file={filename}")
+
+    if status_code == 200:
+        try:
+            data = response.json()
+            log.debug(f"[Codex Chat] 原始响应 output types: {[item.get('type') for item in data.get('output', [])]}")
+            # 从 Codex Responses API 中提取文本
+            text = ""
+            output = data.get("output", [])
+            for item in output:
+                item_type = item.get("type", "")
+                if item_type == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            text += part.get("text", "")
+                elif item_type == "output_text":
+                    text += item.get("text", "")
+            if not text:
+                log.warning(f"[Codex Chat] 响应中未提取到文本, output keys: {list(data.keys())}, output: {data.get('output', [])[:3]}")
+            return JSONResponse(content={"success": True, "text": text})
+        except Exception as e:
+            log.error(f"[Codex Chat] 解析响应失败: {e}, raw: {response.text[:500]}")
+            return JSONResponse(content={"success": True, "text": response.text})
+    else:
+        log.warning(f"[Codex Chat] 请求失败: status={status_code}, body={response.text[:500]}")
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "error": response.text},
+        )
+
+
 @router.post("/test/{filename}")
 async def test_credential(
     filename: str,
@@ -1335,6 +1510,10 @@ async def test_credential(
         credential_data = await storage_adapter.get_credential(filename, mode=mode)
         if not credential_data:
             raise HTTPException(status_code=404, detail="凭证不存在")
+
+        # Codex 模式：使用 Codex API 测试
+        if mode == "codex":
+            return await _test_codex_credential(filename, credential_data, storage_adapter)
 
         # 创建凭证对象并尝试刷新 token（如果需要）
         credentials = Credentials.from_dict(credential_data)
@@ -1528,6 +1707,10 @@ async def chat_with_credential(
         credential_data = await storage_adapter.get_credential(filename, mode=mode)
         if not credential_data:
             raise HTTPException(status_code=404, detail="凭证不存在")
+
+        # Codex 模式：使用 Codex API 对话
+        if mode == "codex":
+            return await _chat_codex_credential(filename, credential_data, storage_adapter, model, message)
 
         credentials = Credentials.from_dict(credential_data)
         token_refreshed = await credentials.refresh_if_needed()

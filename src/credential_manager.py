@@ -119,6 +119,15 @@ class CredentialManager:
         await self._storage_adapter.store_credential(credential_name, credential_data, mode="antigravity")
         log.info(f"Antigravity credential added/updated: {credential_name}")
 
+    async def add_codex_credential(self, credential_name: str, credential_data: Dict[str, Any]):
+        """
+        新增或更新一个Codex凭证
+        存储层会自动处理轮换顺序
+        """
+        await self._ensure_initialized()
+        await self._storage_adapter.store_credential(credential_name, credential_data, mode="codex")
+        log.info(f"Codex credential added/updated: {credential_name}")
+
     async def remove_credential(self, credential_name: str, mode: str = "geminicli") -> bool:
         """删除一个凭证"""
         await self._ensure_initialized()
@@ -211,6 +220,17 @@ class CredentialManager:
             # 如果没有缓存，从凭证数据获取
             credential_data = await self._storage_adapter.get_credential(credential_name, mode=mode)
             if not credential_data:
+                return None
+
+            # Codex凭证直接从JSON中读取email字段
+            if mode == "codex":
+                email = credential_data.get("email")
+                if email:
+                    # 缓存邮箱地址
+                    await self._storage_adapter.update_credential_state(
+                        credential_name, {"user_email": email}, mode=mode
+                    )
+                    return email
                 return None
 
             # 创建凭证对象并自动刷新 token
@@ -318,7 +338,8 @@ class CredentialManager:
                 log.debug("没有access_token，需要刷新")
                 return True
 
-            expiry_str = credential_data.get("expiry")
+            # 支持 expiry (Google OAuth) 和 expired (Codex OAuth) 两种字段
+            expiry_str = credential_data.get("expiry") or credential_data.get("expired")
             if not expiry_str:
                 log.debug("没有过期时间，需要刷新")
                 return True
@@ -371,7 +392,11 @@ class CredentialManager:
         """刷新token并更新存储"""
         await self._ensure_initialized()
         try:
-            # 创建Credentials对象
+            # Codex 凭证使用 OpenAI OAuth 刷新
+            if mode == "codex":
+                return await self._refresh_codex_token(credential_data, filename)
+
+            # 创建Credentials对象 (Google OAuth)
             creds = Credentials.from_dict(credential_data)
 
             # 检查是否可以刷新
@@ -485,6 +510,80 @@ class CredentialManager:
         # 默认认为是临时错误（如网络问题），不应封禁凭证
         log.debug("未匹配到明确的永久失效模式，判定为临时错误")
         return False
+
+    async def _refresh_codex_token(
+        self, credential_data: Dict[str, Any], filename: str
+    ) -> Optional[Dict[str, Any]]:
+        """刷新Codex (OpenAI) token"""
+        from src.httpx_client import post_async
+
+        refresh_token = credential_data.get("refresh_token")
+        if not refresh_token:
+            log.error(f"Codex凭证没有refresh_token，无法刷新: {filename}")
+            try:
+                await self.update_credential_state(filename, {"disabled": True}, mode="codex")
+                log.warning(f"Codex凭证已自动禁用（缺少refresh_token）: {filename}")
+            except Exception as e:
+                log.error(f"禁用Codex凭证失败 {filename}: {e}")
+            return None
+
+        try:
+            log.debug(f"正在刷新Codex token: {filename}")
+            response = await post_async(
+                "https://auth.openai.com/oauth/token",
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            token_data = response.json()
+
+            # 更新凭证数据
+            if token_data.get("access_token"):
+                credential_data["access_token"] = token_data["access_token"]
+            if token_data.get("id_token"):
+                credential_data["id_token"] = token_data["id_token"]
+            if token_data.get("refresh_token"):
+                credential_data["refresh_token"] = token_data["refresh_token"]
+
+            # 计算过期时间
+            if "expires_in" in token_data:
+                from datetime import timedelta
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(token_data["expires_in"]))
+                credential_data["expired"] = expires_at.isoformat()
+
+            credential_data["last_refresh"] = datetime.now(timezone.utc).isoformat()
+
+            # 保存到存储
+            await self._storage_adapter.store_credential(filename, credential_data, mode="codex")
+            log.info(f"Codex token刷新成功并已保存: {filename}")
+            return credential_data
+
+        except Exception as e:
+            error_msg = str(e)
+            log.error(f"Codex token刷新失败 {filename}: {error_msg}")
+
+            status_code = None
+            if hasattr(e, "response") and hasattr(e.response, "status_code"):
+                status_code = e.response.status_code
+
+            is_permanent = self._is_permanent_refresh_failure(error_msg, status_code)
+            if is_permanent:
+                log.warning(f"Codex凭证永久失效 (HTTP {status_code}): {filename}")
+                await self.record_api_call_result(filename, False, status_code or 400, mode="codex")
+                try:
+                    await self.update_credential_state(filename, {"disabled": True}, mode="codex")
+                    log.warning(f"永久失效Codex凭证已禁用: {filename}")
+                except Exception as e2:
+                    log.error(f"禁用永久失效Codex凭证时出错 {filename}: {e2}")
+            else:
+                log.warning(f"Codex token刷新失败但非永久性错误，不封禁凭证: {filename}")
+
+            return None
 
 class _CredentialManagerSingleton:
     """单例包装器，支持懒加载和自动初始化"""

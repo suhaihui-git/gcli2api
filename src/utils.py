@@ -14,6 +14,9 @@ GEMINICLI_USER_AGENT = "GeminiCLI/0.1.5 (Windows; AMD64)"
 
 ANTIGRAVITY_USER_AGENT = "antigravity/2.15.8 (Windows; AMD64)"
 
+CODEX_USER_AGENT = "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
+CODEX_CLIENT_VERSION = "0.101.0"
+
 # OAuth Configuration - 标准模式
 CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 CLIENT_SECRET = "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"
@@ -33,6 +36,12 @@ ANTIGRAVITY_SCOPES = [
     'https://www.googleapis.com/auth/cclog',
     'https://www.googleapis.com/auth/experimentsandconfigs'
 ]
+
+# Codex OAuth Configuration (OpenAI PKCE flow)
+CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+CODEX_AUTH_URL = "https://auth.openai.com/oauth/authorize"
+CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
+CODEX_SCOPES = "openid email profile offline_access"
 
 # 统一的 Token URL（两种模式相同）
 TOKEN_URL = "https://oauth2.googleapis.com/token"

@@ -1847,6 +1847,9 @@
                         <button class="nav-item" onclick="switchTab('antigravity-manage')">
                             <span class="nav-icon purple">A</span> AG凭证
                         </button>
+                        <button class="nav-item" onclick="switchTab('codex-manage')">
+                            <span class="nav-icon orange">C</span> CDX凭证
+                        </button>
                     </div>
 
                     <div class="nav-group">
@@ -1879,6 +1882,7 @@
                 <button class="tab" onclick="switchTab('upload')">Upload</button>
                 <button class="tab" onclick="switchTab('manage')">GCLI</button>
                 <button class="tab" onclick="switchTab('antigravity-manage')">AG</button>
+                <button class="tab" onclick="switchTab('codex-manage')">CDX</button>
                 <button class="tab" onclick="switchTab('config')">Config</button>
                 <button class="tab" onclick="switchTab('docs')">Docs</button>
                 <button class="tab" onclick="switchTab('logs')">Logs</button>
@@ -1892,7 +1896,7 @@
                 <div id="oauthTab" class="tab-content active">
                     <div class="page-header">
                         <div class="page-title">账号认证</div>
-                        <div class="page-desc">通过OAuth认证获取Gemini CLI和Antigravity凭证</div>
+                        <div class="page-desc">通过OAuth认证获取Gemini CLI和Antigravity凭证，或上传Codex凭证</div>
                     </div>
 
                     <!-- Gemini CLI 认证 -->
@@ -2055,6 +2059,83 @@
                                 </div>
                                 <button class="btn btn-primary" style="width:100%; margin-top:12px"
                                     onclick="downloadAntigravityCredentials()">下载凭证文件</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Codex 认证 -->
+                    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider);">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:rgba(255,149,0,0.1); color:#ff9500; font-weight:700; font-size:14px;">C</span>
+                            <div>
+                                <div style="font-size:16px; font-weight:600; color:var(--text-primary);">Codex 认证</div>
+                                <div style="font-size:12px; color:var(--text-secondary);">通过OpenAI OAuth获取Codex凭证（PKCE流程）</div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" id="getCodexAuthBtn" style="width:100%">
+                            获取Codex认证链接
+                        </button>
+
+                        <div id="codexAuthUrlSection" class="hidden">
+                            <div class="card">
+                                <div class="card-title" style="margin-bottom:12px">Codex认证链接</div>
+                                <div class="auth-url">
+                                    <a id="codexAuthUrl" href="#" target="_blank">点击此链接进行认证</a>
+                                </div>
+                                <div class="info-banner blue" style="margin-top:12px">
+                                    <span class="info-banner-icon">i</span>
+                                    <div>
+                                        <ol style="margin:0; padding-left:18px; line-height:1.8">
+                                            <li>点击认证链接完成OpenAI授权</li>
+                                            <li>授权成功后跳转到localhost</li>
+                                            <li>返回本页面点击"获取凭证"</li>
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-top:16px">
+                                    <div class="collapsible-header" onclick="toggleCodexCallbackUrlSection()">
+                                        <span class="collapsible-title">无法回源？试试快捷方式</span>
+                                        <span id="codexCallbackUrlToggleIcon" class="collapsible-icon">&#9660;</span>
+                                    </div>
+                                    <div id="codexCallbackUrlSectionInner" style="display:none; margin-top:12px">
+                                        <div class="info-banner amber" style="margin-bottom:12px">
+                                            <span class="info-banner-icon">i</span>
+                                            <div>
+                                                适用于VPS、Docker、防火墙限制环境。
+                                                粘贴完整的浏览器回调URL
+                                            </div>
+                                        </div>
+                                        <input type="url" id="codexCallbackUrlInput"
+                                            placeholder="粘贴完整的回调URL" />
+                                        <button class="btn btn-success" style="width:100%; margin-top:8px"
+                                            onclick="processCodexCallbackUrl()">
+                                            从回调URL获取凭证
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button class="btn btn-primary" id="getCodexCredsBtn"
+                                    onclick="getCodexCredentials()" style="width:100%; margin-top:8px">
+                                    获取Codex凭证
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="codexCredsSection" class="hidden">
+                            <div class="card">
+                                <div class="card-title" style="margin-bottom:12px">Codex凭证内容</div>
+                                <div class="credentials">
+                                    <pre id="codexCredsContent"></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="info-banner blue" style="margin-top:16px">
+                            <span class="info-banner-icon">i</span>
+                            <div>
+                                也可以通过Codex CLI获取凭证JSON文件后，前往「CDX凭证」页面批量上传。
                             </div>
                         </div>
                     </div>
@@ -2350,6 +2431,147 @@
                             <div class="pagination-info" id="antigravityPaginationInfo">第 1 页，共 1 页</div>
                             <button class="pagination-btn" id="antigravityNextPageBtn"
                                 onclick="changeAntigravityPage(1)">下一页</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== Codex Manage Tab ====== -->
+                <div id="codex-manageTab" class="tab-content">
+                    <div class="manage-header">
+                        <div class="page-title">CDX凭证管理</div>
+                        <div class="manage-header-right">
+                            <div class="stats-container" id="codexStatsContainer">
+                                <div class="stat-item total"><span class="stat-number" id="codexStatTotal">0</span><span class="stat-label">总计</span></div>
+                                <div class="stat-item normal"><span class="stat-number" id="codexStatNormal">0</span><span class="stat-label">正常</span></div>
+                                <div class="stat-item disabled"><span class="stat-number" id="codexStatDisabled">0</span><span class="stat-label">禁用</span></div>
+                            </div>
+                            <div class="manage-actions">
+                                <button class="refresh-btn" onclick="refreshCodexCredsList()">刷新</button>
+                                <button class="download-all-btn" onclick="downloadAllCodexCreds()">下载</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 凭证上传 -->
+                    <div class="card" style="margin-bottom: 16px;">
+                        <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼';">
+                            <span class="collapsible-title">批量上传凭证</span>
+                            <span class="collapsible-icon">▶</span>
+                        </div>
+                        <div style="display:none; margin-top: 12px;">
+                            <div class="upload-area" onclick="document.getElementById('codexFileInput').click()"
+                                ondragover="event.preventDefault(); this.classList.add('dragover')"
+                                ondragleave="this.classList.remove('dragover')"
+                                ondrop="handleCodexFileDrop(event)">
+                                <div class="upload-icon">+</div>
+                                <p>点击选择文件或拖拽文件到此区域</p>
+                                <p>支持 .json 和 .zip 格式文件</p>
+                                <p>ZIP文件会自动解压提取其中的JSON凭证</p>
+                            </div>
+
+                            <input type="file" id="codexFileInput" multiple accept=".json,.zip" style="display:none"
+                                onchange="handleCodexFileSelect(event)" />
+
+                            <div id="codexFileListSection" class="hidden">
+                                <div class="card-title" style="margin-bottom:8px">选择的文件</div>
+                                <div class="file-list" id="codexFileList"></div>
+                                <div class="btn-group">
+                                    <button class="btn btn-success" onclick="uploadCodexFiles()">上传</button>
+                                    <button class="btn btn-secondary" onclick="clearCodexFiles()">清空</button>
+                                </div>
+                            </div>
+
+                            <div id="codexUploadProgressSection" class="hidden">
+                                <div class="upload-progress">
+                                    <div class="card-title" style="margin-bottom:4px">上传进度</div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" id="codexProgressFill" style="width: 0%"></div>
+                                    </div>
+                                    <p id="codexProgressText" style="font-size:13px; color:var(--text-secondary)">0%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="batch-controls">
+                        <div class="batch-actions">
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="selectAllCodexCheckbox" class="select-all-checkbox"
+                                    onchange="toggleSelectAllCodex()">
+                                <label for="selectAllCodexCheckbox"
+                                    style="margin-bottom:0; font-size:12px">全部</label>
+                            </div>
+                            <span class="selected-count" id="codexSelectedCount">已选择 0 项</span>
+                            <button class="batch-btn batch-enable" id="codexBatchEnableBtn"
+                                onclick="batchCodexAction('enable')" disabled>启用</button>
+                            <button class="batch-btn batch-disable" id="codexBatchDisableBtn"
+                                onclick="batchCodexAction('disable')" disabled>禁用</button>
+                            <button class="batch-btn batch-delete" id="codexBatchDeleteBtn"
+                                onclick="batchCodexAction('delete')" disabled>删除</button>
+                            <button class="batch-btn batch-email"
+                                onclick="refreshAllCodexEmails()">刷新邮箱</button>
+                            <button class="batch-btn" style="background-color:#e91e63"
+                                onclick="deduplicateCodexByEmail()">凭证去重</button>
+                        </div>
+                    </div>
+
+                    <div class="filter-container">
+                        <div class="filter-group">
+                            <label for="codexStatusFilter">凭证状态</label>
+                            <select id="codexStatusFilter" class="filter-select"
+                                onchange="applyCodexStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="enabled">仅启用</option>
+                                <option value="disabled">仅禁用</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="codexErrorCodeFilter">错误码</label>
+                            <select id="codexErrorCodeFilter" class="filter-select"
+                                onchange="applyCodexStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="400">400</option>
+                                <option value="403">403</option>
+                                <option value="429">429</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="codexCooldownFilter">冷却状态</label>
+                            <select id="codexCooldownFilter" class="filter-select"
+                                onchange="applyCodexStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="in_cooldown">CD中</option>
+                                <option value="no_cooldown">未CD</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="codexPageSizeSelect">每页显示</label>
+                            <select id="codexPageSizeSelect" class="page-size-select"
+                                onchange="changeCodexPageSize()">
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                                <option value="1000">1000</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="codexCredsListSection">
+                        <div class="loading" id="codexCredsLoading">正在加载凭证文件...</div>
+                        <div id="codexCredsList"></div>
+
+                        <div class="pagination-container" id="codexPaginationContainer" style="display: none;">
+                            <button class="pagination-btn" id="codexPrevPageBtn"
+                                onclick="changeCodexPage(-1)">上一页</button>
+                            <div class="pagination-info" id="codexPaginationInfo">第 1 页，共 1 页</div>
+                            <button class="pagination-btn" id="codexNextPageBtn"
+                                onclick="changeCodexPage(1)">下一页</button>
                         </div>
                     </div>
                 </div>
@@ -2657,6 +2879,25 @@
                                 <span class="doc-desc">模型列表</span>
                             </div>
                         </div>
+                        <div class="doc-card">
+                            <h4>Codex 端点</h4>
+                            <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">通过 OpenAI Codex Responses API 转发，需上传 OpenAI OAuth 或 API Key 凭证</p>
+                            <div class="doc-endpoint">
+                                <span class="doc-method post">POST</span>
+                                <span class="doc-path">/codex/v1/chat/completions</span>
+                                <span class="doc-desc">OpenAI 格式</span>
+                            </div>
+                            <div class="doc-endpoint">
+                                <span class="doc-method post">POST</span>
+                                <span class="doc-path">/codex/v1/messages</span>
+                                <span class="doc-desc">Claude 格式</span>
+                            </div>
+                            <div class="doc-endpoint">
+                                <span class="doc-method get">GET</span>
+                                <span class="doc-path">/codex/v1/models</span>
+                                <span class="doc-desc">模型列表</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- 认证方式 -->
@@ -2715,6 +2956,24 @@
                             </div>
                             <div class="doc-note">AG 可用模型以 <code style="font-family:monospace;font-size:12px">/antigravity/v1/models</code> 返回结果为准</div>
                         </div>
+                        <div class="doc-card">
+                            <h4>Codex 模型</h4>
+                            <p>通过 OpenAI Codex API 提供，支持 GPT-5 系列、o 系列等模型</p>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5-codex</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.1</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.1-codex</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.1-codex-max</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.2</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.2-codex</span>
+                                <span class="doc-badge" style="background:rgba(0,122,255,0.10);color:#007AFF">gpt-5.3-codex</span>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                                <span class="doc-badge" style="background:rgba(90,200,250,0.12);color:#0a84ff">gpt-4.1-nano</span>
+                            </div>
+                            <div class="doc-note">支持思考等级后缀，如 <code style="font-family:monospace;font-size:12px">gpt-5(high)</code>、<code style="font-family:monospace;font-size:12px">gpt-5.2(medium)</code>。完整列表见 <code style="font-family:monospace;font-size:12px">/codex/v1/models</code></div>
+                        </div>
                     </div>
 
                     <!-- 模型后缀与前缀 -->
@@ -2744,6 +3003,20 @@
                                 <span class="doc-badge">-low</span>
                             </div>
                             <div class="doc-note">示例：<code style="font-family:monospace;font-size:12px">gemini-2.5-pro-max</code>、<code style="font-family:monospace;font-size:12px">gemini-2.5-flash-high</code></div>
+                        </div>
+                        <div class="doc-card">
+                            <h4>思考等级后缀（Codex）</h4>
+                            <p>在模型名后添加 <code style="font-family:monospace;font-size:12px">(level)</code> 后缀来控制推理深度</p>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+                                <span class="doc-badge">none</span>
+                                <span class="doc-badge">minimal</span>
+                                <span class="doc-badge">low</span>
+                                <span class="doc-badge">medium</span>
+                                <span class="doc-badge">high</span>
+                                <span class="doc-badge">xhigh</span>
+                            </div>
+                            <div class="doc-note">示例：<code style="font-family:monospace;font-size:12px">gpt-5(high)</code>、<code style="font-family:monospace;font-size:12px">gpt-5.2(medium)</code>、<code style="font-family:monospace;font-size:12px">gpt-5.1-codex-max(xhigh)</code></div>
+                            <div class="doc-note">不同模型支持的等级不同，Claude 格式的 <code style="font-family:monospace;font-size:12px">thinking</code> 配置会自动映射为对应等级</div>
                         </div>
                         <div class="doc-card">
                             <h4>搜索后缀</h4>
@@ -2792,6 +3065,7 @@
                             <button class="doc-tab active" onclick="switchDocTab('openai', this)">OpenAI 格式</button>
                             <button class="doc-tab" onclick="switchDocTab('gemini', this)">Gemini 格式</button>
                             <button class="doc-tab" onclick="switchDocTab('claude', this)">Claude 格式</button>
+                            <button class="doc-tab" onclick="switchDocTab('codex', this)">Codex 格式</button>
                         </div>
                         <div class="doc-tab-panel">
                             <div id="docTabOpenai" class="doc-tab-content active">
@@ -2843,6 +3117,47 @@
   "messages": [
     {"role": "user", "content": "Hello"}
   ]
+}</div>
+                            </div>
+                            <div id="docTabCodex" class="doc-tab-content">
+                                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">OpenAI 格式端点：<code style="font-family:monospace;font-size:12px">/codex/v1/chat/completions</code></p>
+                                <div class="doc-code">{
+  "model": "gpt-5(high)",
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ],
+  "stream": true
+}</div>
+                                <div class="doc-sub">Claude 格式端点</div>
+                                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">端点：<code style="font-family:monospace;font-size:12px">/codex/v1/messages</code>，需要 Header：<code style="font-family:monospace;font-size:12px">anthropic-version: 2023-06-01</code></p>
+                                <div class="doc-code">{
+  "model": "gpt-5(high)",
+  "max_tokens": 4096,
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ],
+  "stream": true
+}</div>
+                                <div class="doc-sub">工具调用</div>
+                                <div class="doc-code">{
+  "model": "gpt-5",
+  "messages": [
+    {"role": "user", "content": "What is the weather?"}
+  ],
+  "tools": [{
+    "type": "function",
+    "function": {
+      "name": "get_weather",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {"type": "string"}
+        }
+      }
+    }
+  }],
+  "tool_choice": "auto",
+  "stream": true
 }</div>
                             </div>
                         </div>

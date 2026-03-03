@@ -3,16 +3,19 @@
 """
 
 import asyncio
+import base64
+import hashlib
 import json
+import os
 import secrets
 import socket
 import threading
 import time
 import uuid
-from datetime import timezone
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from config import get_config_value, get_antigravity_api_url, get_code_assist_endpoint
 from log import log
@@ -34,6 +37,10 @@ from .utils import (
     CALLBACK_HOST,
     CLIENT_ID,
     CLIENT_SECRET,
+    CODEX_CLIENT_ID,
+    CODEX_AUTH_URL,
+    CODEX_TOKEN_URL,
+    CODEX_SCOPES,
     SCOPES,
     GEMINICLI_USER_AGENT,
     TOKEN_URL,
@@ -43,6 +50,193 @@ from .utils import (
 async def get_callback_port():
     """获取OAuth回调端口"""
     return int(await get_config_value("oauth_callback_port", "11451", "OAUTH_CALLBACK_PORT"))
+
+
+# ====================== Codex PKCE OAuth ======================
+
+
+def _generate_pkce_codes() -> Dict[str, str]:
+    """生成PKCE code_verifier和code_challenge"""
+    # 96 random bytes -> base64url no padding -> 128 char verifier
+    code_verifier = base64.urlsafe_b64encode(os.urandom(96)).rstrip(b"=").decode("ascii")
+    # SHA256(verifier) -> base64url no padding
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode("ascii")).digest())
+        .rstrip(b"=")
+        .decode("ascii")
+    )
+    return {"code_verifier": code_verifier, "code_challenge": code_challenge}
+
+
+def _build_codex_auth_url(redirect_uri: str, state: str, code_challenge: str) -> str:
+    """构建Codex (OpenAI) OAuth认证URL"""
+    params = {
+        "client_id": CODEX_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "scope": CODEX_SCOPES,
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "prompt": "login",
+        "id_token_add_organizations": "true",
+        "codex_cli_simplified_flow": "true",
+    }
+    return f"{CODEX_AUTH_URL}?{urlencode(params)}"
+
+
+async def _exchange_codex_code(code: str, redirect_uri: str, code_verifier: str) -> Dict[str, Any]:
+    """使用授权码和PKCE verifier向OpenAI交换token"""
+    import aiohttp
+
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": CODEX_CLIENT_ID,
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "code_verifier": code_verifier,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            CODEX_TOKEN_URL,
+            data=data,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                raise Exception(f"Codex token交换失败 (HTTP {resp.status}): {error_text}")
+            return await resp.json()
+
+
+def _parse_codex_id_token(id_token: str) -> Dict[str, Any]:
+    """解析OpenAI id_token JWT（不验证签名）"""
+    try:
+        parts = id_token.split(".")
+        if len(parts) < 2:
+            return {}
+        # 恢复base64 padding
+        payload = parts[1]
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += "=" * padding
+        decoded = base64.urlsafe_b64decode(payload)
+        claims = json.loads(decoded)
+
+        # 提取关键信息
+        auth_info = claims.get("https://api.openai.com/auth", {})
+        return {
+            "email": claims.get("email", ""),
+            "account_id": auth_info.get("chatgpt_account_id", ""),
+            "plan_type": auth_info.get("chatgpt_plan_type", ""),
+            "user_id": auth_info.get("chatgpt_user_id", ""),
+            "exp": claims.get("exp"),
+        }
+    except Exception as e:
+        log.warning(f"解析Codex id_token失败: {e}")
+        return {}
+
+
+def _generate_codex_filename(email: str, plan_type: str, account_id: str) -> str:
+    """生成Codex凭证文件名"""
+    plan_type = plan_type.lower().strip() if plan_type else ""
+    if plan_type == "team" and account_id:
+        # team用户使用account_id哈希作为前缀
+        hash_id = hashlib.md5(account_id.encode()).hexdigest()[:8]
+        return f"codex-{hash_id}-{email}-team.json"
+    elif plan_type:
+        return f"codex-{email}-{plan_type}.json"
+    else:
+        return f"codex-{email}.json"
+
+
+def _prepare_codex_credentials_data(token_response: Dict[str, Any], id_info: Dict[str, Any]) -> Dict[str, Any]:
+    """准备Codex凭证数据"""
+    creds_data = {
+        "id_token": token_response.get("id_token", ""),
+        "access_token": token_response.get("access_token", ""),
+        "refresh_token": token_response.get("refresh_token", ""),
+        "account_id": id_info.get("account_id", ""),
+        "last_refresh": datetime.now(timezone.utc).isoformat(),
+        "email": id_info.get("email", ""),
+        "type": "codex",
+    }
+    # 计算过期时间
+    expires_in = token_response.get("expires_in")
+    if expires_in:
+        expire_time = datetime.now(timezone.utc).timestamp() + expires_in
+        creds_data["expired"] = datetime.fromtimestamp(expire_time, tz=timezone.utc).isoformat()
+    return creds_data
+
+
+async def _complete_codex_auth(flow_data: Dict[str, Any], auth_code: str, state: str) -> Dict[str, Any]:
+    """完成Codex OAuth认证流程"""
+    try:
+        code_verifier = flow_data.get("pkce_verifier")
+        redirect_uri = flow_data.get("callback_url")
+
+        if not code_verifier:
+            return {"success": False, "error": "缺少PKCE code_verifier"}
+
+        # 交换token
+        log.info("开始Codex token交换...")
+        token_response = await _exchange_codex_code(auth_code, redirect_uri, code_verifier)
+        log.info("Codex token交换成功")
+
+        # 解析id_token
+        id_token = token_response.get("id_token", "")
+        id_info = _parse_codex_id_token(id_token) if id_token else {}
+
+        email = id_info.get("email", "unknown")
+        plan_type = id_info.get("plan_type", "")
+        account_id = id_info.get("account_id", "")
+
+        log.info(f"Codex用户信息: email={email}, plan={plan_type}")
+
+        # 准备凭证数据
+        creds_data = _prepare_codex_credentials_data(token_response, id_info)
+
+        # 生成文件名
+        filename = _generate_codex_filename(email, plan_type, account_id)
+
+        # 保存凭证
+        storage_adapter = await get_storage_adapter()
+        success = await storage_adapter.store_credential(filename, creds_data, mode="codex")
+
+        if not success:
+            return {"success": False, "error": "保存Codex凭证失败"}
+
+        # 创建默认状态记录
+        try:
+            default_state = {
+                "error_codes": [],
+                "disabled": False,
+                "last_success": time.time(),
+                "user_email": email,
+            }
+            await storage_adapter.update_credential_state(filename, default_state, mode="codex")
+        except Exception as e:
+            log.warning(f"创建Codex凭证状态记录失败: {e}")
+
+        log.info(f"Codex凭证已保存: {filename}")
+
+        # 清理流程
+        _cleanup_auth_flow_server(state)
+
+        return {
+            "success": True,
+            "credentials": creds_data,
+            "file_path": filename,
+            "auto_detected_project": False,
+            "mode": "codex",
+        }
+
+    except Exception as e:
+        log.error(f"完成Codex认证失败: {e}")
+        return {"success": False, "error": f"Codex认证失败: {str(e)}"}
 
 
 def _prepare_credentials_data(credentials: Credentials, project_id: str, mode: str = "geminicli") -> Dict[str, Any]:
@@ -243,9 +437,14 @@ async def create_auth_url(
 ) -> Dict[str, Any]:
     """创建认证URL，支持动态端口分配"""
     try:
-        # 动态分配端口
-        callback_port = await find_available_port()
-        callback_url = f"http://{CALLBACK_HOST}:{callback_port}"
+        # Codex模式使用专用端口和路径（匹配OpenAI注册的redirect_uri）
+        if mode == "codex":
+            callback_port = await find_available_port(start_port=1455)
+            callback_url = f"http://{CALLBACK_HOST}:{callback_port}/auth/callback"
+        else:
+            # 动态分配端口
+            callback_port = await find_available_port()
+            callback_url = f"http://{CALLBACK_HOST}:{callback_port}"
 
         # 立即启动回调服务器
         try:
@@ -267,6 +466,63 @@ async def create_auth_url(
 
         # 创建OAuth流程
         # 根据模式选择配置
+        if mode == "codex":
+            # Codex使用OpenAI PKCE OAuth，不需要Google Flow
+            pkce_codes = _generate_pkce_codes()
+
+            # 生成状态标识符
+            if user_session:
+                state = f"{user_session}_{str(uuid.uuid4())}"
+            else:
+                state = str(uuid.uuid4())
+
+            # 构建OpenAI认证URL
+            auth_url = _build_codex_auth_url(callback_url, state, pkce_codes["code_challenge"])
+
+            # 严格控制认证流程数量
+            if len(auth_flows) >= MAX_AUTH_FLOWS:
+                oldest_state = min(
+                    auth_flows.keys(), key=lambda k: auth_flows[k].get("created_at", 0)
+                )
+                try:
+                    old_flow = auth_flows[oldest_state]
+                    if old_flow.get("server"):
+                        async_shutdown_server(old_flow["server"], old_flow.get("callback_port"))
+                except Exception as e:
+                    log.warning(f"Failed to cleanup old auth flow {oldest_state}: {e}")
+                del auth_flows[oldest_state]
+
+            # 保存流程状态（Codex特有字段：pkce_verifier）
+            auth_flows[state] = {
+                "flow": None,  # Codex不使用Google Flow
+                "project_id": None,
+                "user_session": user_session,
+                "callback_port": callback_port,
+                "callback_url": callback_url,
+                "server": callback_server,
+                "server_thread": server_thread,
+                "pkce_verifier": pkce_codes["code_verifier"],
+                "code": None,
+                "completed": False,
+                "created_at": time.time(),
+                "auto_project_detection": False,
+                "mode": "codex",
+            }
+
+            cleanup_expired_flows()
+
+            log.info(f"Codex OAuth流程已创建: state={state}")
+            log.info(f"用户需要访问认证URL，然后OAuth会回调到 {callback_url}")
+
+            return {
+                "auth_url": auth_url,
+                "state": state,
+                "callback_port": callback_port,
+                "success": True,
+                "auto_project_detection": False,
+                "detected_project_id": None,
+            }
+
         if mode == "antigravity":
             client_id = ANTIGRAVITY_CLIENT_ID
             client_secret = ANTIGRAVITY_CLIENT_SECRET
@@ -562,33 +818,52 @@ async def asyncio_complete_auth_flow(
         # 如果没有指定项目ID或没找到匹配的，查找需要自动检测项目ID的流程
         if not state:
             log.info("没有找到指定项目的流程，查找自动检测流程")
-            # 首先尝试找到已完成的流程（有授权码的）
-            completed_flows = []
-            for s, data in auth_flows.items():
-                if data.get("auto_project_detection", False):
-                    if user_session and data.get("user_session") == user_session:
-                        if data.get("code"):  # 优先选择已完成的
-                            completed_flows.append((s, data, data.get("created_at", 0)))
 
-            # 如果有已完成的流程，选择最新的
-            if completed_flows:
-                completed_flows.sort(key=lambda x: x[2], reverse=True)  # 按时间倒序
-                state, flow_data, _ = completed_flows[0]
-                log.info(f"找到已完成的最新认证流程: {state}")
+            # 对于Codex模式，按mode=codex匹配
+            if mode == "codex":
+                codex_flows = []
+                for s, data in auth_flows.items():
+                    if data.get("mode") == "codex":
+                        if user_session and data.get("user_session") == user_session:
+                            codex_flows.append((s, data, data.get("created_at", 0)))
+                        elif not user_session:
+                            codex_flows.append((s, data, data.get("created_at", 0)))
+                if codex_flows:
+                    # 优先选择有code的，然后选最新的
+                    codex_flows.sort(
+                        key=lambda x: (1 if x[1].get("code") else 0, x[2]), reverse=True
+                    )
+                    state, flow_data, _ = codex_flows[0]
+                    log.info(f"找到Codex认证流程: {state}")
+
             else:
-                # 如果没有已完成的，找最新的未完成流程
-                pending_flows = []
+                # 首先尝试找到已完成的流程（有授权码的）
+                completed_flows = []
                 for s, data in auth_flows.items():
                     if data.get("auto_project_detection", False):
                         if user_session and data.get("user_session") == user_session:
-                            pending_flows.append((s, data, data.get("created_at", 0)))
-                        elif not user_session:
-                            pending_flows.append((s, data, data.get("created_at", 0)))
+                            if data.get("code"):  # 优先选择已完成的
+                                completed_flows.append((s, data, data.get("created_at", 0)))
 
-                if pending_flows:
-                    pending_flows.sort(key=lambda x: x[2], reverse=True)  # 按时间倒序
-                    state, flow_data, _ = pending_flows[0]
-                    log.info(f"找到最新的待完成认证流程: {state}")
+                # 如果有已完成的流程，选择最新的
+                if completed_flows:
+                    completed_flows.sort(key=lambda x: x[2], reverse=True)  # 按时间倒序
+                    state, flow_data, _ = completed_flows[0]
+                    log.info(f"找到已完成的最新认证流程: {state}")
+                else:
+                    # 如果没有已完成的，找最新的未完成流程
+                    pending_flows = []
+                    for s, data in auth_flows.items():
+                        if data.get("auto_project_detection", False):
+                            if user_session and data.get("user_session") == user_session:
+                                pending_flows.append((s, data, data.get("created_at", 0)))
+                            elif not user_session:
+                                pending_flows.append((s, data, data.get("created_at", 0)))
+
+                    if pending_flows:
+                        pending_flows.sort(key=lambda x: x[2], reverse=True)  # 按时间倒序
+                        state, flow_data, _ = pending_flows[0]
+                        log.info(f"找到最新的待完成认证流程: {state}")
 
         if not state or not flow_data:
             log.error(f"未找到认证流程: state={state}, flow_data存在={bool(flow_data)}")
@@ -602,10 +877,11 @@ async def asyncio_complete_auth_flow(
         log.info(f"传入的project_id参数: {project_id}")
 
         # 如果需要自动检测项目ID且没有提供项目ID
-        log.info(
-            f"检查auto_project_detection条件: auto_project_detection={flow_data.get('auto_project_detection', False)}, not project_id={not project_id}"
-        )
-        if flow_data.get("auto_project_detection", False) and not project_id:
+        # Codex模式不需要project_id
+        cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
+        if cred_mode == "codex":
+            log.info("Codex模式，跳过project_id检查")
+        elif flow_data.get("auto_project_detection", False) and not project_id:
             log.info("跳过自动检测项目ID，进入等待阶段")
         elif not project_id:
             log.info("进入project_id检查分支")
@@ -657,6 +933,11 @@ async def asyncio_complete_auth_flow(
         auth_code = flow_data["code"]
 
         log.info(f"开始使用授权码获取凭证: code={'***' + auth_code[-4:] if auth_code else 'None'}")
+
+        # Codex模式：使用OpenAI PKCE token交换
+        cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
+        if cred_mode == "codex":
+            return await _complete_codex_auth(flow_data, auth_code, state)
 
         # 使用认证代码获取凭证
         with _OAuthLibPatcher():
@@ -838,6 +1119,12 @@ async def complete_auth_flow_from_callback_url(
             }
 
         flow_data = auth_flows[state]
+
+        # Codex模式：使用PKCE token交换
+        cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
+        if cred_mode == "codex":
+            return await _complete_codex_auth(flow_data, code, state)
+
         flow = flow_data["flow"]
 
         # 构造回调URL（使用flow中存储的redirect_uri）

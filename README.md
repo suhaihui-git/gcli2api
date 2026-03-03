@@ -40,6 +40,14 @@
   - Claude 格式端点：`/antigravity/v1/messages`
   - 支持所有 Antigravity 模型（Claude、Gemini 等）
   - 自动模型名称映射和思维模式检测
+- **Codex API 支持**：通过 OpenAI Codex Responses API 转发，同时支持 OpenAI 和 Claude 格式
+  - OpenAI 格式端点：`/codex/v1/chat/completions`
+  - Claude 格式端点：`/codex/v1/messages`
+  - 模型列表端点：`/codex/v1/models`
+  - 支持 GPT-5 系列、o 系列等 OpenAI 原生模型
+  - 支持思考等级后缀（如 `gpt-5(high)`、`gpt-5.2(medium)`）
+  - 工具调用（function calling）、推理内容、流式/非流式响应
+  - 凭证管理：支持 OpenAI OAuth 和 API Key 两种认证方式
 
 ### 🔐 认证和安全管理
 
@@ -536,6 +544,7 @@ export MONGODB_URI="mongodb://localhost:27017/gemini-api-pool?readPreference=sec
 - `OAUTH_PROXY_URL`: OAuth 认证代理端点
 - `GOOGLEAPIS_PROXY_URL`: Google APIs 代理端点
 - `METADATA_SERVICE_URL`: 元数据服务代理端点
+- `CODEX_API_URL`: Codex API 地址（默认：`https://chatgpt.com/backend-api/codex`）
 
 **自动化配置**
 - `AUTO_BAN`: 启用凭证自动封禁（默认：true）
@@ -810,6 +819,146 @@ for part in response.candidates[0].content.parts:
 - OpenAI 端点返回 OpenAI 兼容格式
 - Gemini 端点返回 Gemini 原生格式
 - 两种端点使用相同的 API 密码
+
+#### 5. Codex API 端点
+
+通过 OpenAI Codex Responses API 转发请求，支持 GPT-5 系列、o 系列等 OpenAI 原生模型。同时提供 OpenAI Chat Completions 和 Claude Messages 两种格式的兼容接口。
+
+**凭证说明：**
+- 需要上传 OpenAI 的 OAuth 凭证（含 `access_token`、`refresh_token`）或 API Key 凭证
+- 凭证类型选择 Codex 模式管理
+
+##### Codex OpenAI 格式端点
+
+**端点：** `/codex/v1/chat/completions`
+**模型列表：** `/codex/v1/models`
+**认证：** `Authorization: Bearer your_api_password`
+
+**请求示例：**
+```bash
+curl -X POST "http://127.0.0.1:7861/codex/v1/chat/completions" \
+  -H "Authorization: Bearer your_api_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5",
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ],
+    "stream": true
+  }'
+```
+
+**思考等级支持：**
+
+通过在模型名称后添加 `(level)` 后缀来指定推理深度：
+```json
+{
+  "model": "gpt-5(high)",
+  "messages": [
+    {"role": "user", "content": "解决一个复杂的数学问题"}
+  ],
+  "stream": true
+}
+```
+
+可用的思考等级：`none`、`minimal`、`low`、`medium`（默认）、`high`、`xhigh`
+
+不同模型支持的思考等级不同，具体请通过 `/codex/v1/models` 查看。
+
+**工具调用支持：**
+```json
+{
+  "model": "gpt-5",
+  "messages": [
+    {"role": "user", "content": "What is the weather?"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get weather info",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {"type": "string"}
+          }
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto",
+  "stream": true
+}
+```
+
+响应中包含推理内容：
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "最终答案",
+      "reasoning_content": "详细的思考过程..."
+    }
+  }],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 200,
+    "total_tokens": 300,
+    "prompt_tokens_details": {"cached_tokens": 50},
+    "completion_tokens_details": {"reasoning_tokens": 80}
+  }
+}
+```
+
+##### Codex Claude 格式端点
+
+**端点：** `/codex/v1/messages`
+**认证：** `x-api-key: your_api_password` 或 `Authorization: Bearer your_api_password`
+
+**请求示例：**
+```bash
+curl -X POST "http://127.0.0.1:7861/codex/v1/messages" \
+  -H "x-api-key: your_api_password" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5(high)",
+    "max_tokens": 4096,
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ],
+    "stream": true
+  }'
+```
+
+**说明：**
+- 完全兼容 Claude API 格式规范，可用于 Claude Code 等客户端
+- 支持 Claude 的 `thinking` 配置，自动映射为 Codex 的 `reasoning` effort
+- 支持 `tool_use`/`tool_result` 工具调用流程
+- 支持 `web_search_20250305` 工具自动映射
+- 响应中包含 `thinking` 内容块和 `cache_read_input_tokens` 用量统计
+
+##### Codex 支持的模型
+
+| 模型 | 思考等级 |
+|------|----------|
+| `gpt-5` | minimal, low, medium, high |
+| `gpt-5-codex` | low, medium, high |
+| `gpt-5-codex-mini` | low, medium, high |
+| `gpt-5.1` | none, low, medium, high |
+| `gpt-5.1-codex` | low, medium, high |
+| `gpt-5.1-codex-mini` | low, medium, high |
+| `gpt-5.1-codex-max` | low, medium, high, xhigh |
+| `gpt-5.2` | none, low, medium, high, xhigh |
+| `gpt-5.2-codex` | low, medium, high, xhigh |
+| `gpt-5.3-codex` | low, medium, high, xhigh |
+| `gpt-5.3-codex-spark` | low, medium, high, xhigh |
+| `gpt-4.1-nano` | - |
+
+**环境变量配置：**
+- `CODEX_API_URL`：Codex API 地址（默认：`https://chatgpt.com/backend-api/codex`）
 
 ## 📋 完整 API 参考
 

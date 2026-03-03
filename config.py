@@ -30,6 +30,7 @@ ENV_MAPPINGS = {
     "RESOURCE_MANAGER_API_URL": "resource_manager_api_url",
     "SERVICE_USAGE_API_URL": "service_usage_api_url",
     "ANTIGRAVITY_API_URL": "antigravity_api_url",
+    "CODEX_API_URL": "codex_api_url",
     "AUTO_BAN": "auto_ban_enabled",
     "AUTO_BAN_ERROR_CODES": "auto_ban_error_codes",
     "RETRY_429_MAX_RETRIES": "retry_429_max_retries",
@@ -437,5 +438,24 @@ async def get_antigravity_api_url() -> str:
             "antigravity_api_url",
             "https://daily-cloudcode-pa.sandbox.googleapis.com",
             "ANTIGRAVITY_API_URL",
+        )
+    )
+
+
+async def get_codex_api_url() -> str:
+    """
+    Get Codex API URL setting.
+
+    用于OpenAI Codex API的URL。
+
+    Environment variable: CODEX_API_URL
+    Database config key: codex_api_url
+    Default: https://chatgpt.com/backend-api/codex
+    """
+    return str(
+        await get_config_value(
+            "codex_api_url",
+            "https://chatgpt.com/backend-api/codex",
+            "CODEX_API_URL",
         )
     )

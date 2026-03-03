@@ -53,6 +53,18 @@ class SQLiteManager:
             ("call_count", "INTEGER DEFAULT 0"),
             ("created_at", "REAL DEFAULT (unixepoch())"),
             ("updated_at", "REAL DEFAULT (unixepoch())")
+        ],
+        "codex_credentials": [
+            ("disabled", "INTEGER DEFAULT 0"),
+            ("error_codes", "TEXT DEFAULT '[]'"),
+            ("error_messages", "TEXT DEFAULT '[]'"),
+            ("last_success", "REAL"),
+            ("user_email", "TEXT"),
+            ("model_cooldowns", "TEXT DEFAULT '{}'"),
+            ("rotation_order", "INTEGER DEFAULT 0"),
+            ("call_count", "INTEGER DEFAULT 0"),
+            ("created_at", "REAL DEFAULT (unixepoch())"),
+            ("updated_at", "REAL DEFAULT (unixepoch())")
         ]
     }
 
@@ -227,6 +239,43 @@ class SQLiteManager:
             ON antigravity_credentials(rotation_order)
         """)
 
+        # Codex 凭证表
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS codex_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT UNIQUE NOT NULL,
+                credential_data TEXT NOT NULL,
+
+                -- 状态字段
+                disabled INTEGER DEFAULT 0,
+                error_codes TEXT DEFAULT '[]',
+                error_messages TEXT DEFAULT '[]',
+                last_success REAL,
+                user_email TEXT,
+
+                -- 模型级 CD 支持 (JSON: {model_name: cooldown_timestamp})
+                model_cooldowns TEXT DEFAULT '{}',
+
+                -- 轮换相关
+                rotation_order INTEGER DEFAULT 0,
+                call_count INTEGER DEFAULT 0,
+
+                -- 时间戳
+                created_at REAL DEFAULT (unixepoch()),
+                updated_at REAL DEFAULT (unixepoch())
+            )
+        """)
+
+        # 创建索引 - Codex 凭证表
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_codex_disabled
+            ON codex_credentials(disabled)
+        """)
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_codex_rotation_order
+            ON codex_credentials(rotation_order)
+        """)
+
         # 配置表
         await db.execute("""
             CREATE TABLE IF NOT EXISTS config (
@@ -275,35 +324,36 @@ class SQLiteManager:
                             repaired_count += 1
                             log.warning(f"Removed duplicate credential with path: {filename} (kept {basename})")
 
-            # 修复 antigravity_credentials 表
-            async with db.execute("SELECT filename FROM antigravity_credentials") as cursor:
-                rows = await cursor.fetchall()
-                for (filename,) in rows:
-                    basename = os.path.basename(filename)
-                    if basename != filename:
-                        # 检查是否会产生冲突
-                        async with db.execute(
-                            "SELECT COUNT(*) FROM antigravity_credentials WHERE filename = ?",
-                            (basename,)
-                        ) as check_cursor:
-                            count = (await check_cursor.fetchone())[0]
+            # 修复 antigravity_credentials 和 codex_credentials 表
+            for extra_table in ["antigravity_credentials", "codex_credentials"]:
+                try:
+                    async with db.execute(f"SELECT filename FROM {extra_table}") as cursor:
+                        rows = await cursor.fetchall()
+                        for (filename,) in rows:
+                            basename = os.path.basename(filename)
+                            if basename != filename:
+                                async with db.execute(
+                                    f"SELECT COUNT(*) FROM {extra_table} WHERE filename = ?",
+                                    (basename,)
+                                ) as check_cursor:
+                                    count = (await check_cursor.fetchone())[0]
 
-                        if count == 0:
-                            # 无冲突，直接更新
-                            await db.execute(
-                                "UPDATE antigravity_credentials SET filename = ? WHERE filename = ?",
-                                (basename, filename)
-                            )
-                            repaired_count += 1
-                            log.info(f"Repaired antigravity credential filename: {filename} -> {basename}")
-                        else:
-                            # 有冲突，删除带路径的旧记录（保留 basename 的记录）
-                            await db.execute(
-                                "DELETE FROM antigravity_credentials WHERE filename = ?",
-                                (filename,)
-                            )
-                            repaired_count += 1
-                            log.warning(f"Removed duplicate antigravity credential with path: {filename} (kept {basename})")
+                                if count == 0:
+                                    await db.execute(
+                                        f"UPDATE {extra_table} SET filename = ? WHERE filename = ?",
+                                        (basename, filename)
+                                    )
+                                    repaired_count += 1
+                                    log.info(f"Repaired {extra_table} filename: {filename} -> {basename}")
+                                else:
+                                    await db.execute(
+                                        f"DELETE FROM {extra_table} WHERE filename = ?",
+                                        (filename,)
+                                    )
+                                    repaired_count += 1
+                                    log.warning(f"Removed duplicate {extra_table} with path: {filename} (kept {basename})")
+                except Exception:
+                    pass  # 表可能还不存在
 
             if repaired_count > 0:
                 log.info(f"Repaired {repaired_count} credential filename(s)")
@@ -353,8 +403,10 @@ class SQLiteManager:
             return "antigravity_credentials"
         elif mode == "geminicli":
             return "credentials"
+        elif mode == "codex":
+            return "codex_credentials"
         else:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'geminicli' or 'antigravity'")
+            raise ValueError(f"Invalid mode: {mode}. Must be 'geminicli', 'antigravity' or 'codex'")
 
     # ============ SQL 方法 ============
 

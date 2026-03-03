@@ -15,13 +15,19 @@ const AppState = {
     antigravityAuthState: null,
     antigravityAuthInProgress: false,
 
+    // Codex认证
+    codexAuthState: null,
+    codexAuthInProgress: false,
+
     // 凭证管理
     creds: createCredsManager('normal'),
     antigravityCreds: createCredsManager('antigravity'),
+    codexCreds: createCredsManager('codex'),
 
     // 文件上传
     uploadFiles: createUploadManager('normal'),
     antigravityUploadFiles: createUploadManager('antigravity'),
+    codexUploadFiles: createUploadManager('codex'),
 
     // 配置管理
     currentConfig: {},
@@ -44,7 +50,7 @@ const AppState = {
 // 凭证管理器工厂
 // =====================================================================
 function createCredsManager(type) {
-    const modeParam = type === 'antigravity' ? 'mode=antigravity' : 'mode=geminicli';
+    const modeParam = type === 'antigravity' ? 'mode=antigravity' : type === 'codex' ? 'mode=codex' : 'mode=geminicli';
 
     return {
         type: type,
@@ -85,8 +91,12 @@ function createCredsManager(type) {
         getElementId: (suffix) => {
             // 普通凭证的ID首字母小写,如 credsLoading
             // Antigravity的ID是 antigravity + 首字母大写,如 antigravityCredsLoading
+            // Codex的ID是 codex + 首字母大写,如 codexCredsLoading
             if (type === 'antigravity') {
                 return 'antigravity' + suffix.charAt(0).toUpperCase() + suffix.slice(1);
+            }
+            if (type === 'codex') {
+                return 'codex' + suffix.charAt(0).toUpperCase() + suffix.slice(1);
             }
             return suffix.charAt(0).toLowerCase() + suffix.slice(1);
         },
@@ -140,7 +150,7 @@ function createCredsManager(type) {
                     this.renderList();
                     this.updatePagination();
 
-                    let msg = `已加载 ${data.total} 个${type === 'antigravity' ? 'Antigravity' : ''}凭证文件`;
+                    let msg = `已加载 ${data.total} 个${type === 'antigravity' ? 'Antigravity' : type === 'codex' ? 'Codex' : ''}凭证文件`;
                     if (this.currentStatusFilter !== 'all') {
                         msg += ` (筛选: ${this.currentStatusFilter === 'enabled' ? '仅启用' : '仅禁用'})`;
                     }
@@ -345,7 +355,7 @@ function createCredsManager(type) {
 // 文件上传管理器工厂
 // =====================================================================
 function createUploadManager(type) {
-    const modeParam = type === 'antigravity' ? 'mode=antigravity' : 'mode=geminicli';
+    const modeParam = type === 'antigravity' ? 'mode=antigravity' : type === 'codex' ? 'mode=codex' : 'mode=geminicli';
     const endpoint = `./creds/upload?${modeParam}`;
 
     return {
@@ -355,8 +365,12 @@ function createUploadManager(type) {
         getElementId: (suffix) => {
             // 普通上传的ID首字母小写,如 fileList
             // Antigravity的ID是 antigravity + 首字母大写,如 antigravityFileList
+            // Codex的ID是 codex + 首字母大写,如 codexFileList
             if (type === 'antigravity') {
                 return 'antigravity' + suffix.charAt(0).toUpperCase() + suffix.slice(1);
+            }
+            if (type === 'codex') {
+                return 'codex' + suffix.charAt(0).toUpperCase() + suffix.slice(1);
             }
             return suffix.charAt(0).toLowerCase() + suffix.slice(1);
         },
@@ -410,7 +424,7 @@ function createUploadManager(type) {
                         <span class="file-name">${fileIcon} ${file.name}</span>
                         <span class="file-size">(${formatFileSize(file.size)}${fileType})</span>
                     </div>
-                    <button class="remove-btn" onclick="${type === 'antigravity' ? 'removeAntigravityFile' : 'removeFile'}(${index})">删除</button>
+                    <button class="remove-btn" onclick="${type === 'antigravity' ? 'removeAntigravityFile' : type === 'codex' ? 'removeCodexFile' : 'removeFile'}(${index})">删除</button>
                 `;
                 list.appendChild(fileItem);
             });
@@ -461,11 +475,13 @@ function createUploadManager(type) {
                     if (xhr.status === 200) {
                         try {
                             const data = JSON.parse(xhr.responseText);
-                            showStatus(`成功上传 ${data.uploaded_count} 个${type === 'antigravity' ? 'Antigravity' : ''}文件`, 'success');
+                            showStatus(`成功上传 ${data.uploaded_count} 个${type === 'antigravity' ? 'Antigravity' : type === 'codex' ? 'Codex' : ''}文件`, 'success');
                             this.clearFiles();
                             progressSection.classList.add('hidden');
                             if (type === 'antigravity') {
                                 AppState.antigravityCreds.refresh();
+                            } else if (type === 'codex') {
+                                AppState.codexCreds.refresh();
                             } else {
                                 AppState.creds.refresh();
                             }
@@ -681,7 +697,7 @@ function createCredCard(credInfo, manager) {
     }
 
     // Preview状态显示 (仅对geminicli模式显示)
-    if (managerType !== 'antigravity' && credInfo.preview !== undefined) {
+    if (managerType !== 'antigravity' && managerType !== 'codex' && credInfo.preview !== undefined) {
         if (credInfo.preview) {
             statusBadges += '<span class="status-badge" style="background-color: #9c27b0; color: white;" title="该凭证支持Preview模型">Preview</span>';
         } else {
@@ -718,7 +734,9 @@ function createCredCard(credInfo, manager) {
     }
 
     // 路径ID
-    const pathId = (managerType === 'antigravity' ? 'ag_' : '') + btoa(encodeURIComponent(filename)).replace(/[+/=]/g, '_');
+    const typePrefix = managerType === 'antigravity' ? 'ag_' : managerType === 'codex' ? 'cx_' : '';
+    const pathId = typePrefix + btoa(encodeURIComponent(filename)).replace(/[+/=]/g, '_');
+    const fnPrefix = managerType === 'antigravity' ? 'Antigravity' : managerType === 'codex' ? 'Codex' : '';
 
     // 操作按钮
     const actionButtons = `
@@ -726,15 +744,15 @@ function createCredCard(credInfo, manager) {
             ? `<button class="cred-btn enable" data-filename="${filename}" data-action="enable">启用</button>`
             : `<button class="cred-btn disable" data-filename="${filename}" data-action="disable">禁用</button>`
         }
-        <button class="cred-btn view" onclick="toggle${managerType === 'antigravity' ? 'Antigravity' : ''}CredDetails('${pathId}')">查看内容</button>
-        <button class="cred-btn download" onclick="download${managerType === 'antigravity' ? 'Antigravity' : ''}Cred('${filename}')">下载</button>
-        <button class="cred-btn email" onclick="fetch${managerType === 'antigravity' ? 'Antigravity' : ''}UserEmail('${filename}')">查看账号邮箱</button>
+        <button class="cred-btn view" onclick="toggle${fnPrefix}CredDetails('${pathId}')">查看内容</button>
+        <button class="cred-btn download" onclick="download${fnPrefix}Cred('${filename}')">下载</button>
+        <button class="cred-btn email" onclick="fetch${fnPrefix}UserEmail('${filename}')">查看账号邮箱</button>
         ${managerType === 'antigravity' ? `<button class="cred-btn" style="background-color: #17a2b8;" onclick="toggleAntigravityQuotaDetails('${pathId}')" title="查看该凭证的额度信息">查看额度</button>` : ''}
-        ${managerType !== 'antigravity' ? `<button class="cred-btn" style="background-color: #00bcd4;" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">设置预览</button>` : ''}
-        <button class="cred-btn" style="background-color: #ff9800;" onclick="verify${managerType === 'antigravity' ? 'Antigravity' : ''}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>
-        <button class="cred-btn" style="background-color: #9c27b0;" onclick="test${managerType === 'antigravity' ? 'Antigravity' : ''}Credential('${filename}')" title="测试凭证是否可用">消息测试</button>
+        ${managerType === 'normal' ? `<button class="cred-btn" style="background-color: #00bcd4;" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">设置预览</button>` : ''}
+        ${managerType !== 'codex' ? `<button class="cred-btn" style="background-color: #ff9800;" onclick="verify${fnPrefix}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>` : ''}
+        <button class="cred-btn" style="background-color: #9c27b0;" onclick="test${fnPrefix}Credential('${filename}')" title="测试凭证是否可用">消息测试</button>
         <button class="cred-btn" style="background-color: #2196f3;" onclick="showChatModal('${filename}', '${managerType}')" title="使用该凭证进行对话">对话</button>
-        <button class="cred-btn" style="background-color: #e91e63;" onclick="toggle${managerType === 'antigravity' ? 'Antigravity' : ''}ErrorDetails('${pathId}')" title="查看该凭证的详细报错信息">查看报错</button>
+        <button class="cred-btn" style="background-color: #e91e63;" onclick="toggle${fnPrefix}ErrorDetails('${pathId}')" title="查看该凭证的详细报错信息">查看报错</button>
         <button class="cred-btn delete" data-filename="${filename}" data-action="delete">删除</button>
     `;
 
@@ -748,7 +766,7 @@ function createCredCard(credInfo, manager) {
     div.innerHTML = `
         <div class="cred-header">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" class="${checkboxClass}" data-filename="${filename}" onchange="toggle${managerType === 'antigravity' ? 'Antigravity' : ''}FileSelection('${filename}')">
+                <input type="checkbox" class="${checkboxClass}" data-filename="${filename}" onchange="toggle${fnPrefix}FileSelection('${filename}')">
                 <div>
                     <div class="cred-filename">${filename}</div>
                     ${emailInfo}
@@ -777,7 +795,8 @@ function createCredCard(credInfo, manager) {
             const fn = this.getAttribute('data-filename');
             const action = this.getAttribute('data-action');
             if (action === 'delete') {
-                if (confirm(`确定要删除${managerType === 'antigravity' ? ' Antigravity ' : ''}凭证文件吗？\n${fn}`)) {
+                const typeLabel = managerType === 'antigravity' ? ' Antigravity ' : managerType === 'codex' ? ' Codex ' : '';
+                if (confirm(`确定要删除${typeLabel}凭证文件吗？\n${fn}`)) {
                     manager.action(fn, action);
                 }
             } else {
@@ -800,6 +819,10 @@ async function toggleAntigravityCredDetails(pathId) {
     await toggleCredDetailsCommon(pathId, AppState.antigravityCreds);
 }
 
+async function toggleCodexCredDetails(pathId) {
+    await toggleCredDetailsCommon(pathId, AppState.codexCreds);
+}
+
 async function toggleCredDetailsCommon(pathId, manager) {
     const details = document.getElementById('details-' + pathId);
     if (!details) return;
@@ -815,7 +838,7 @@ async function toggleCredDetailsCommon(pathId, manager) {
             contentDiv.textContent = '正在加载文件内容...';
 
             try {
-                const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : 'mode=geminicli';
+                const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : manager.type === 'codex' ? 'mode=codex' : 'mode=geminicli';
                 const endpoint = `./creds/detail/${encodeURIComponent(filename)}?${modeParam}`;
 
                 const response = await fetch(endpoint, { headers: getAuthHeaders() });
@@ -1042,6 +1065,7 @@ function switchTab(tabName) {
 function triggerTabDataLoad(tabName) {
     if (tabName === 'manage') AppState.creds.refresh();
     if (tabName === 'antigravity-manage') AppState.antigravityCreds.refresh();
+    if (tabName === 'codex-manage') AppState.codexCreds.refresh();
     if (tabName === 'config') loadConfig();
     if (tabName === 'logs') connectWebSocket();
 }
@@ -1397,6 +1421,143 @@ async function processAntigravityCallbackUrl() {
     }
 }
 
+
+// =====================================================================
+// Codex OAuth认证（OpenAI PKCE流程）
+// =====================================================================
+
+async function startCodexAuth() {
+    const btn = document.getElementById('getCodexAuthBtn');
+    btn.disabled = true;
+    btn.textContent = '生成认证链接中...';
+
+    try {
+        showStatus('正在生成 Codex 认证链接...', 'info');
+
+        const response = await fetch('./auth/start', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ mode: 'codex' })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            AppState.codexAuthState = data.state;
+            AppState.codexAuthInProgress = true;
+
+            const authUrlLink = document.getElementById('codexAuthUrl');
+            authUrlLink.href = data.auth_url;
+            authUrlLink.textContent = data.auth_url;
+            document.getElementById('codexAuthUrlSection').classList.remove('hidden');
+
+            showStatus('Codex 认证链接已生成！请点击链接完成OpenAI授权', 'success');
+        } else {
+            showStatus(`错误: ${data.error || '生成认证链接失败'}`, 'error');
+        }
+    } catch (error) {
+        showStatus(`网络错误: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '获取Codex认证链接';
+    }
+}
+
+
+async function getCodexCredentials() {
+    if (!AppState.codexAuthInProgress) {
+        showStatus('请先获取 Codex 认证链接并完成授权', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('getCodexCredsBtn');
+    btn.disabled = true;
+    btn.textContent = '等待OAuth回调中...';
+
+    try {
+        showStatus('正在等待 Codex OAuth回调...', 'info');
+
+        const response = await fetch('./auth/callback', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ mode: 'codex' })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            document.getElementById('codexCredsContent').textContent = JSON.stringify(data.credentials, null, 2);
+            document.getElementById('codexCredsSection').classList.remove('hidden');
+            AppState.codexAuthInProgress = false;
+            showStatus(`Codex 认证成功！文件已保存到: ${data.file_path}`, 'success');
+        } else {
+            showStatus(`错误: ${data.error || '获取认证文件失败'}`, 'error');
+        }
+    } catch (error) {
+        showStatus(`网络错误: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '获取Codex凭证';
+    }
+}
+
+
+async function processCodexCallbackUrl() {
+    const callbackUrl = document.getElementById('codexCallbackUrlInput').value.trim();
+
+    if (!callbackUrl) {
+        showStatus('请输入回调URL', 'error');
+        return;
+    }
+
+    if (!callbackUrl.startsWith('http://') && !callbackUrl.startsWith('https://')) {
+        showStatus('请输入有效的URL（以http://或https://开头）', 'error');
+        return;
+    }
+
+    if (!callbackUrl.includes('code=') || !callbackUrl.includes('state=')) {
+        showStatus('这不是有效的回调URL！请确保包含code和state参数', 'error');
+        return;
+    }
+
+    showStatus('正在从回调URL获取 Codex 凭证...', 'info');
+
+    try {
+        const response = await fetch('./auth/callback-url', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ callback_url: callbackUrl, mode: 'codex' })
+        });
+
+        const result = await response.json();
+
+        if (result.credentials) {
+            showStatus(result.message || '从回调URL获取 Codex 凭证成功！', 'success');
+            document.getElementById('codexCredsContent').textContent = JSON.stringify(result.credentials, null, 2);
+            document.getElementById('codexCredsSection').classList.remove('hidden');
+        } else {
+            showStatus(result.error || '从回调URL获取 Codex 凭证失败', 'error');
+        }
+
+        document.getElementById('codexCallbackUrlInput').value = '';
+    } catch (error) {
+        showStatus(`从回调URL获取 Codex 凭证失败: ${error.message}`, 'error');
+    }
+}
+
+
+function toggleCodexCallbackUrlSection() {
+    const section = document.getElementById('codexCallbackUrlSectionInner');
+    const icon = document.getElementById('codexCallbackUrlToggleIcon');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.innerHTML = '&#9650;';
+    } else {
+        section.style.display = 'none';
+        icon.innerHTML = '&#9660;';
+    }
+}
+
 // =====================================================================
 // 全局兼容函数（供HTML调用）
 // =====================================================================
@@ -1540,11 +1701,86 @@ function removeAntigravityFile(index) { AppState.antigravityUploadFiles.removeFi
 function clearAntigravityFiles() { AppState.antigravityUploadFiles.clearFiles(); }
 function uploadAntigravityFiles() { AppState.antigravityUploadFiles.upload(); }
 
+// Codex凭证管理
+function refreshCodexCredsList() { AppState.codexCreds.refresh(); }
+function applyCodexStatusFilter() { AppState.codexCreds.applyStatusFilter(); }
+function changeCodexPage(direction) { AppState.codexCreds.changePage(direction); }
+function changeCodexPageSize() { AppState.codexCreds.changePageSize(); }
+function toggleCodexFileSelection(filename) {
+    if (AppState.codexCreds.selectedFiles.has(filename)) {
+        AppState.codexCreds.selectedFiles.delete(filename);
+    } else {
+        AppState.codexCreds.selectedFiles.add(filename);
+    }
+    AppState.codexCreds.updateBatchControls();
+}
+function toggleSelectAllCodex() {
+    const checkbox = document.getElementById('selectAllCodexCheckbox');
+    const checkboxes = document.querySelectorAll('.codexFile-checkbox');
+
+    if (checkbox.checked) {
+        checkboxes.forEach(cb => AppState.codexCreds.selectedFiles.add(cb.getAttribute('data-filename')));
+    } else {
+        AppState.codexCreds.selectedFiles.clear();
+    }
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    AppState.codexCreds.updateBatchControls();
+}
+function batchCodexAction(action) { AppState.codexCreds.batchAction(action); }
+function downloadCodexCred(filename) {
+    fetch(`./creds/download/${filename}?mode=codex`, { headers: getAuthHeaders() })
+        .then(r => r.ok ? r.blob() : Promise.reject())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            showStatus(`已下载: ${filename}`, 'success');
+        })
+        .catch(() => showStatus(`下载失败: ${filename}`, 'error'));
+}
+function deleteCodexCred(filename) {
+    if (confirm(`确定要删除 ${filename} 吗？`)) {
+        AppState.codexCreds.action(filename, 'delete');
+    }
+}
+async function downloadAllCodexCreds() {
+    try {
+        const response = await fetch('./creds/download-all?mode=codex', { headers: getAuthHeaders() });
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `codex_credentials_${Date.now()}.zip`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            showStatus('所有Codex凭证已打包下载', 'success');
+        }
+    } catch (error) {
+        showStatus(`网络错误: ${error.message}`, 'error');
+    }
+}
+
+// Codex文件上传
+function handleCodexFileSelect(event) { AppState.codexUploadFiles.handleFileSelect(event); }
+function handleCodexFileDrop(event) {
+    event.preventDefault();
+    event.currentTarget.style.borderColor = '#007bff';
+    event.currentTarget.style.backgroundColor = '#f8f9fa';
+    AppState.codexUploadFiles.addFiles(Array.from(event.dataTransfer.files));
+}
+function removeCodexFile(index) { AppState.codexUploadFiles.removeFile(index); }
+function clearCodexFiles() { AppState.codexUploadFiles.clearFiles(); }
+function uploadCodexFiles() { AppState.codexUploadFiles.upload(); }
+
 // 邮箱相关
 // 辅助函数：根据文件名更新卡片中的邮箱显示
 function updateEmailDisplay(filename, email, managerType = 'normal') {
     // 查找对应的凭证卡片
-    const containerId = managerType === 'antigravity' ? 'antigravityCredsList' : 'credsList';
+    const containerId = managerType === 'antigravity' ? 'antigravityCredsList' : managerType === 'codex' ? 'codexCredsList' : 'credsList';
     const container = document.getElementById(containerId);
     if (!container) return false;
 
@@ -1599,6 +1835,25 @@ async function fetchAntigravityUserEmail(filename) {
             showStatus(`成功获取邮箱: ${data.user_email}`, 'success');
             // 直接更新卡片中的邮箱显示，不刷新整个列表
             updateEmailDisplay(filename, data.user_email, 'antigravity');
+        } else {
+            showStatus(data.message || '无法获取用户邮箱', 'error');
+        }
+    } catch (error) {
+        showStatus(`获取邮箱失败: ${error.message}`, 'error');
+    }
+}
+
+async function fetchCodexUserEmail(filename) {
+    try {
+        showStatus('正在获取用户邮箱...', 'info');
+        const response = await fetch(`./creds/fetch-email/${encodeURIComponent(filename)}?mode=codex`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        if (response.ok && data.user_email) {
+            showStatus(`成功获取邮箱: ${data.user_email}`, 'success');
+            updateEmailDisplay(filename, data.user_email, 'codex');
         } else {
             showStatus(data.message || '无法获取用户邮箱', 'error');
         }
@@ -1675,8 +1930,11 @@ async function verifyAntigravityProjectId(filename) {
 
 function showChatModal(filename, managerType) {
     const isAntigravity = managerType === 'antigravity';
-    const modeParam = isAntigravity ? '?mode=antigravity' : '?mode=geminicli';
-    const models = isAntigravity
+    const isCodex = managerType === 'codex';
+    const modeParam = isAntigravity ? '?mode=antigravity' : isCodex ? '?mode=codex' : '?mode=geminicli';
+    const models = isCodex
+        ? ['gpt-5.2-codex', 'gpt-5.2(high)', 'gpt-5.2(xhigh)', 'gpt-5.1-codex', 'gpt-5-codex', 'gpt-5.3-codex', 'o4-mini', 'o3', 'gpt-4.1', 'codex-mini-latest']
+        : isAntigravity
         ? ['claude-opus-4-6', 'gemini-3-flash', 'gemini-3.1-pro-preview']
         : ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
 
@@ -1852,6 +2110,47 @@ async function testAntigravityCredential(filename) {
     }
 }
 
+async function testCodexCredential(filename) {
+    try {
+        showStatus('正在测试Codex凭证，请稍候...', 'info');
+
+        const response = await fetch(`./creds/test/${encodeURIComponent(filename)}?mode=codex`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+
+        if (response.status === 200 || response.status === 429) {
+            const successMsg = `测试成功！\n文件: ${filename}\n状态: ${data.message || 'Codex凭证可用'} (${data.status_code || 200})`;
+            showStatus('测试成功！', 'success');
+            showMessageModal('测试成功', successMsg, 'success');
+            await AppState.codexCreds.refresh();
+        }
+        else {
+            let errorDetails = `测试失败\n文件: ${filename}\n`;
+
+            if (data.error) {
+                try {
+                    const errorObj = JSON.parse(data.error);
+                    errorDetails += `\n错误详情:\n${JSON.stringify(errorObj, null, 2)}`;
+                } catch {
+                    errorDetails += `\n错误详情:\n${data.error}`;
+                }
+            } else {
+                errorDetails += `错误码: ${data.status_code || response.status}`;
+            }
+
+            showStatus(`测试失败 - ${data.message || '错误码: ' + (data.status_code || response.status)}`, 'error');
+            showMessageModal('测试失败', errorDetails, 'error');
+        }
+    } catch (error) {
+        const errorMsg = `测试失败: ${error.message}`;
+        showStatus(`${errorMsg}`, 'error');
+        showMessageModal('测试失败', `${errorMsg}`, 'error');
+    }
+}
+
 async function configurePreviewChannel(filename) {
     try {
         // 显示加载状态
@@ -2006,6 +2305,10 @@ async function toggleAntigravityErrorDetails(pathId) {
     await toggleErrorDetailsCommon(pathId, AppState.antigravityCreds);
 }
 
+async function toggleCodexErrorDetails(pathId) {
+    await toggleErrorDetailsCommon(pathId, AppState.codexCreds);
+}
+
 async function toggleErrorDetailsCommon(pathId, manager) {
     const errorDetails = document.getElementById('errors-' + pathId);
     if (!errorDetails) return;
@@ -2022,7 +2325,7 @@ async function toggleErrorDetailsCommon(pathId, manager) {
             contentDiv.innerHTML = '<div style="text-align: center; padding: 16px; color: #666;">正在加载报错信息...</div>';
 
             try {
-                const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : 'mode=geminicli';
+                const modeParam = manager.type === 'antigravity' ? 'mode=antigravity' : manager.type === 'codex' ? 'mode=codex' : 'mode=geminicli';
                 const response = await fetch(`./creds/errors/${encodeURIComponent(filename)}?${modeParam}`, {
                     method: 'GET',
                     headers: getAuthHeaders()
@@ -2478,6 +2781,57 @@ async function deduplicateAntigravityByEmail() {
             await AppState.antigravityCreds.refresh();
             
             // 显示详细信息
+            if (data.duplicate_groups && data.duplicate_groups.length > 0) {
+                let details = '去重详情：\n\n';
+                data.duplicate_groups.forEach(group => {
+                    details += `邮箱: ${group.email}\n保留: ${group.kept_file}\n删除: ${group.deleted_files.join(', ')}\n\n`;
+                });
+                console.log(details);
+            }
+        } else {
+            showStatus(data.message || '去重失败', 'error');
+        }
+    } catch (error) {
+        showStatus(`去重网络错误: ${error.message}`, 'error');
+    }
+}
+
+async function refreshAllCodexEmails() {
+    if (!confirm('确定要刷新所有Codex凭证的用户邮箱吗？这可能需要一些时间。')) return;
+
+    try {
+        showStatus('正在刷新所有用户邮箱...', 'info');
+        const response = await fetch('./creds/refresh-all-emails?mode=codex', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showStatus(`邮箱刷新完成：成功获取 ${data.success_count}/${data.total_count} 个邮箱地址`, 'success');
+            await AppState.codexCreds.refresh();
+        } else {
+            showStatus(data.message || '邮箱刷新失败', 'error');
+        }
+    } catch (error) {
+        showStatus(`邮箱刷新网络错误: ${error.message}`, 'error');
+    }
+}
+
+async function deduplicateCodexByEmail() {
+    if (!confirm('确定要对Codex凭证进行凭证一键去重吗？\n\n相同邮箱的凭证只保留一个，其他将被删除。\n此操作不可撤销！')) return;
+
+    try {
+        showStatus('正在进行凭证一键去重...', 'info');
+        const response = await fetch('./creds/deduplicate-by-email?mode=codex', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        if (response.ok) {
+            const msg = `去重完成：删除 ${data.deleted_count} 个重复凭证，保留 ${data.kept_count} 个凭证（${data.unique_emails_count} 个唯一邮箱）`;
+            showStatus(msg, 'success');
+            await AppState.codexCreds.refresh();
+
             if (data.duplicate_groups && data.duplicate_groups.length > 0) {
                 let details = '去重详情：\n\n';
                 data.duplicate_groups.forEach(group => {
@@ -3168,6 +3522,11 @@ window.onload = async function () {
     const antigravityAuthBtn = document.getElementById('getAntigravityAuthBtn');
     if (antigravityAuthBtn) {
         antigravityAuthBtn.addEventListener('click', startAntigravityAuth);
+    }
+
+    const codexAuthBtn = document.getElementById('getCodexAuthBtn');
+    if (codexAuthBtn) {
+        codexAuthBtn.addEventListener('click', startCodexAuth);
     }
 };
 

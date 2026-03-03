@@ -138,7 +138,7 @@ def validate_mode(mode: str = "geminicli") -> str:
     验证 mode 参数
 
     Args:
-        mode: 模式字符串 ("geminicli" 或 "antigravity")
+        mode: 模式字符串 ("geminicli", "antigravity" 或 "codex")
 
     Returns:
         str: 验证后的 mode 字符串
@@ -146,10 +146,10 @@ def validate_mode(mode: str = "geminicli") -> str:
     Raises:
         HTTPException: 如果 mode 参数无效
     """
-    if mode not in ["geminicli", "antigravity"]:
+    if mode not in ["geminicli", "antigravity", "codex"]:
         raise HTTPException(
             status_code=400,
-            detail=f"无效的 mode 参数: {mode}，只支持 'geminicli' 或 'antigravity'"
+            detail=f"无效的 mode 参数: {mode}，只支持 'geminicli', 'antigravity' 或 'codex'"
         )
     return mode
 
