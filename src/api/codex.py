@@ -302,8 +302,9 @@ async def non_stream_request(
             if headers:
                 request_headers.update(headers)
 
-            # compact 端点: 仅删除 stream，保留其他字段
+            # compact 端点: 删除不支持的字段
             body.pop("stream", None)
+            body.pop("store", None)
             body.pop("previous_response_id", None)
             body.pop("prompt_cache_retention", None)
             body.pop("safety_identifier", None)
