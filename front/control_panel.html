@@ -849,7 +849,7 @@
         }
 
         .batch-btn.batch-enable { background: var(--success); }
-        .batch-btn.batch-disable { background: var(--text-tertiary); }
+        .batch-btn.batch-disable { background: #86868b; }
         .batch-btn.batch-delete { background: var(--danger); }
         .batch-btn.batch-email { background: var(--accent); }
 
@@ -2300,12 +2300,12 @@
                                 disabled>禁用</button>
                             <button class="batch-btn batch-delete" id="batchDeleteBtn" onclick="batchAction('delete')"
                                 disabled>删除</button>
-                            <button class="batch-btn" style="background-color:#ff9800" id="batchVerifyBtn"
+                            <button class="batch-btn" style="background-color:#e67e00;color:#fff" id="batchVerifyBtn"
                                 onclick="batchVerifyProjectIds()" disabled>批量检验</button>
-                            <button class="batch-btn" style="background-color:#9c27b0" id="batchPreviewBtn"
+                            <button class="batch-btn" style="background-color:#7b1fa2;color:#fff" id="batchPreviewBtn"
                                 onclick="batchConfigurePreview()" disabled>批量预览</button>
                             <button class="batch-btn batch-email" onclick="refreshAllEmails()">刷新邮箱</button>
-                            <button class="batch-btn" style="background-color:#e91e63"
+                            <button class="batch-btn" style="background-color:#c2185b;color:#fff"
                                 onclick="deduplicateByEmail()">凭证去重</button>
                         </div>
                     </div>
@@ -2460,11 +2460,11 @@
                                 onclick="batchAntigravityAction('disable')" disabled>禁用</button>
                             <button class="batch-btn batch-delete" id="antigravityBatchDeleteBtn"
                                 onclick="batchAntigravityAction('delete')" disabled>删除</button>
-                            <button class="batch-btn" style="background-color:#ff9800" id="antigravityBatchVerifyBtn"
+                            <button class="batch-btn" style="background-color:#e67e00;color:#fff" id="antigravityBatchVerifyBtn"
                                 onclick="batchVerifyAntigravityProjectIds()" disabled>批量检验</button>
                             <button class="batch-btn batch-email"
                                 onclick="refreshAllAntigravityEmails()">刷新邮箱</button>
-                            <button class="batch-btn" style="background-color:#e91e63"
+                            <button class="batch-btn" style="background-color:#c2185b;color:#fff"
                                 onclick="deduplicateAntigravityByEmail()">凭证去重</button>
                         </div>
                     </div>
@@ -2617,7 +2617,7 @@
                                 onclick="batchCodexAction('delete')" disabled>删除</button>
                             <button class="batch-btn batch-email"
                                 onclick="refreshAllCodexEmails()">刷新邮箱</button>
-                            <button class="batch-btn" style="background-color:#e91e63"
+                            <button class="batch-btn" style="background-color:#c2185b;color:#fff"
                                 onclick="deduplicateCodexByEmail()">凭证去重</button>
                         </div>
                     </div>
