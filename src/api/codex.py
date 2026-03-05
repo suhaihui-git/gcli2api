@@ -26,6 +26,30 @@ from src.utils import CODEX_CLIENT_VERSION, CODEX_USER_AGENT
 
 MODE = "codex"
 
+# 可安全自动剥离的参数白名单（避免剥离关键字段如 model, input）
+_SAFE_TO_STRIP_PARAMS = {
+    "reasoning", "include", "parallel_tool_calls",
+    "store", "stream", "reasoning.effort", "reasoning.summary",
+}
+
+
+def _parse_unknown_parameter(error_str: str) -> Optional[str]:
+    """
+    解析 400 unknown_parameter 错误，提取被拒绝的参数名
+
+    返回参数名（仅当在安全剥离白名单中时），否则返回 None
+    """
+    try:
+        data = json.loads(error_str)
+        error = data.get("error", {})
+        if error.get("code") == "unknown_parameter":
+            param = error.get("param", "")
+            if param and param in _SAFE_TO_STRIP_PARAMS:
+                return param
+    except Exception:
+        pass
+    return None
+
 
 def build_codex_headers(
     access_token: str,
@@ -180,6 +204,16 @@ async def stream_request(
                             f"credential={credential_name}, "
                             f"error={error_str[:500]}"
                         )
+
+                        # 400 unknown_parameter: 自动剥离问题参数并重试
+                        if r.status_code == 400:
+                            bad_param = _parse_unknown_parameter(error_str)
+                            if bad_param and bad_param in body:
+                                log.info(
+                                    f"[CODEX] 自动剥离不支持的参数 '{bad_param}' 并重试"
+                                )
+                                body.pop(bad_param, None)
+                                continue  # 重试（不消耗常规重试次数）
 
                         # 处理 429 速率限制
                         cooldown_until = None
@@ -339,6 +373,16 @@ async def non_stream_request(
                         f"[CODEX] 非流式请求失败: status={r.status_code}, "
                         f"error={error_text[:500]}"
                     )
+
+                    # 400 unknown_parameter: 自动剥离问题参数并重试
+                    if r.status_code == 400:
+                        bad_param = _parse_unknown_parameter(error_text)
+                        if bad_param and bad_param in body:
+                            log.info(
+                                f"[CODEX] 自动剥离不支持的参数 '{bad_param}' 并重试"
+                            )
+                            body.pop(bad_param, None)
+                            continue
 
                     cooldown_until = None
                     if r.status_code == 429:
