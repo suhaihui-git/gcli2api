@@ -1009,29 +1009,97 @@
         }
 
         .cred-btn {
-            padding: 4px 10px;
+            padding: 5px 12px;
             border: 1px solid var(--divider);
-            border-radius: 6px;
-            background: var(--card-bg);
-            color: var(--text-primary);
+            border-radius: 8px;
+            background: rgba(142, 142, 147, 0.06);
+            color: var(--text-secondary);
             font-size: 11px;
             font-weight: 500;
             cursor: pointer;
             transition: all var(--transition);
             font-family: inherit;
+            letter-spacing: 0.01em;
         }
 
         .cred-btn:hover {
-            background: var(--bg);
-            border-color: var(--accent);
-            color: var(--accent);
+            background: rgba(0, 122, 255, 0.1);
+            border-color: rgba(0, 122, 255, 0.25);
+            color: #007AFF;
         }
+
+        .cred-btn:active { transform: scale(0.96); }
+
+        .cred-btn.enable {
+            background: rgba(52, 199, 89, 0.1);
+            color: #28a745;
+            border-color: rgba(52, 199, 89, 0.2);
+        }
+        .cred-btn.enable:hover { background: rgba(52, 199, 89, 0.18); color: #1e7e34; }
+
+        .cred-btn.disable {
+            background: rgba(255, 159, 10, 0.1);
+            color: #e08600;
+            border-color: rgba(255, 159, 10, 0.2);
+        }
+        .cred-btn.disable:hover { background: rgba(255, 159, 10, 0.18); color: #cc7a00; }
+
+        .cred-btn.delete {
+            background: rgba(255, 59, 48, 0.08);
+            color: #ff3b30;
+            border-color: rgba(255, 59, 48, 0.18);
+        }
+        .cred-btn.delete:hover { background: rgba(255, 59, 48, 0.16); color: #d32f2f; }
+
+        .cred-btn.chat {
+            background: rgba(0, 122, 255, 0.1);
+            color: #007AFF;
+            border-color: rgba(0, 122, 255, 0.2);
+        }
+        .cred-btn.chat:hover { background: rgba(0, 122, 255, 0.18); color: #0062cc; }
+
+        .cred-btn.test {
+            background: rgba(156, 39, 176, 0.08);
+            color: #9c27b0;
+            border-color: rgba(156, 39, 176, 0.18);
+        }
+        .cred-btn.test:hover { background: rgba(156, 39, 176, 0.16); color: #7b1fa2; }
+
+        .cred-btn.error-view {
+            background: rgba(233, 30, 99, 0.08);
+            color: #e91e63;
+            border-color: rgba(233, 30, 99, 0.18);
+        }
+        .cred-btn.error-view:hover { background: rgba(233, 30, 99, 0.16); color: #c2185b; }
+
+        .cred-btn.verify {
+            background: rgba(255, 152, 0, 0.1);
+            color: #ef8c00;
+            border-color: rgba(255, 152, 0, 0.2);
+        }
+        .cred-btn.verify:hover { background: rgba(255, 152, 0, 0.18); color: #e07c00; }
+
+        .cred-btn.quota {
+            background: rgba(0, 188, 212, 0.08);
+            color: #00acc1;
+            border-color: rgba(0, 188, 212, 0.18);
+        }
+        .cred-btn.quota:hover { background: rgba(0, 188, 212, 0.16); color: #00838f; }
+
+        .cred-btn.preview {
+            background: rgba(0, 188, 212, 0.08);
+            color: #00acc1;
+            border-color: rgba(0, 188, 212, 0.18);
+        }
+        .cred-btn.preview:hover { background: rgba(0, 188, 212, 0.16); color: #00838f; }
 
         .cred-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-top: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--divider);
         }
 
         .cred-details {
@@ -2166,6 +2234,20 @@
                         </div>
                     </div>
 
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="gcliOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="gcliClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Gemini格式</td><td><code id="gcliGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var o=window.location.origin;document.getElementById('gcliOpenaiUrl').textContent=o+'/v1';document.getElementById('gcliClaudeUrl').textContent=o+'/v1';document.getElementById('gcliGeminiUrl').textContent=o;})();
+                            function cpUrl(el){navigator.clipboard.writeText(el.textContent).then(function(){var s=el.style.background;el.style.background='#b7f0b7';setTimeout(function(){el.style.background=s;},800);});}
+                        </script>
+                    </div>
+
                     <!-- 凭证上传 -->
                     <div class="card" style="margin-bottom: 16px;">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼';">
@@ -2309,6 +2391,19 @@
                         </div>
                     </div>
 
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="antOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="antClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Gemini格式</td><td><code id="antGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var o2=window.location.origin;document.getElementById('antOpenaiUrl').textContent=o2+'/antigravity/v1';document.getElementById('antClaudeUrl').textContent=o2+'/antigravity/v1';document.getElementById('antGeminiUrl').textContent=o2+'/antigravity';})();
+                        </script>
+                    </div>
+
                     <!-- 凭证上传 -->
                     <div class="card" style="margin-bottom: 16px;">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼';">
@@ -2450,6 +2545,18 @@
                                 <button class="download-all-btn" onclick="downloadAllCodexCreds()">下载</button>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="cdxOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="cdxClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var o3=window.location.origin;document.getElementById('cdxOpenaiUrl').textContent=o3+'/codex/v1';document.getElementById('cdxClaudeUrl').textContent=o3+'/codex/v1';})();
+                        </script>
                     </div>
 
                     <!-- 凭证上传 -->

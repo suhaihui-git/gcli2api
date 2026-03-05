@@ -686,21 +686,74 @@
         }
 
         .cred-btn {
-            padding: 5px 10px;
+            padding: 6px 12px;
             border: 1px solid var(--divider);
-            border-radius: 6px;
-            background: var(--card-bg);
+            border-radius: 8px;
+            background: rgba(142, 142, 147, 0.06);
+            color: var(--text-secondary);
             font-size: 12px;
             font-weight: 500;
             cursor: pointer;
             font-family: inherit;
+            transition: all 0.2s;
+            letter-spacing: 0.01em;
+        }
+
+        .cred-btn:active { transform: scale(0.96); }
+
+        .cred-btn.enable {
+            background: rgba(52, 199, 89, 0.1);
+            color: #28a745;
+            border-color: rgba(52, 199, 89, 0.2);
+        }
+        .cred-btn.disable {
+            background: rgba(255, 159, 10, 0.1);
+            color: #e08600;
+            border-color: rgba(255, 159, 10, 0.2);
+        }
+        .cred-btn.delete {
+            background: rgba(255, 59, 48, 0.08);
+            color: #ff3b30;
+            border-color: rgba(255, 59, 48, 0.18);
+        }
+        .cred-btn.chat {
+            background: rgba(0, 122, 255, 0.1);
+            color: #007AFF;
+            border-color: rgba(0, 122, 255, 0.2);
+        }
+        .cred-btn.test {
+            background: rgba(156, 39, 176, 0.08);
+            color: #9c27b0;
+            border-color: rgba(156, 39, 176, 0.18);
+        }
+        .cred-btn.error-view {
+            background: rgba(233, 30, 99, 0.08);
+            color: #e91e63;
+            border-color: rgba(233, 30, 99, 0.18);
+        }
+        .cred-btn.verify {
+            background: rgba(255, 152, 0, 0.1);
+            color: #ef8c00;
+            border-color: rgba(255, 152, 0, 0.2);
+        }
+        .cred-btn.quota {
+            background: rgba(0, 188, 212, 0.08);
+            color: #00acc1;
+            border-color: rgba(0, 188, 212, 0.18);
+        }
+        .cred-btn.preview {
+            background: rgba(0, 188, 212, 0.08);
+            color: #00acc1;
+            border-color: rgba(0, 188, 212, 0.18);
         }
 
         .cred-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-top: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--divider);
         }
 
         .cred-details {
@@ -1400,6 +1453,20 @@
                         </div>
                     </div>
 
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mGcliOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="mGcliClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Gemini格式</td><td><code id="mGcliGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var mo=window.location.origin;document.getElementById('mGcliOpenaiUrl').textContent=mo+'/v1';document.getElementById('mGcliClaudeUrl').textContent=mo+'/v1';document.getElementById('mGcliGeminiUrl').textContent=mo;})();
+                            function cpUrl(el){navigator.clipboard.writeText(el.textContent).then(function(){var s=el.style.background;el.style.background='#b7f0b7';setTimeout(function(){el.style.background=s;},800);});}
+                        </script>
+                    </div>
+
                     <!-- 凭证上传 -->
                     <div class="card">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '&#9654;' : '&#9660;';">
@@ -1521,6 +1588,19 @@
                         </div>
                     </div>
 
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mAntOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="mAntClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Gemini格式</td><td><code id="mAntGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var mo2=window.location.origin;document.getElementById('mAntOpenaiUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntClaudeUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntGeminiUrl').textContent=mo2+'/antigravity';})();
+                        </script>
+                    </div>
+
                     <!-- 凭证上传 -->
                     <div class="card">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '&#9654;' : '&#9660;';">
@@ -1640,6 +1720,18 @@
                                 <button class="download-all-btn" onclick="downloadAllCodexCreds()">下载</button>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- API地址 -->
+                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+                        <strong>API地址（点击复制）：</strong>
+                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
+                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mCdxOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                            <tr><td style="color:#666;">Claude格式</td><td><code id="mCdxClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
+                        </table>
+                        <script>
+                            (function(){var mo3=window.location.origin;document.getElementById('mCdxOpenaiUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxClaudeUrl').textContent=mo3+'/codex/v1';})();
+                        </script>
                     </div>
 
                     <!-- 凭证上传 -->
