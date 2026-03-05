@@ -100,8 +100,9 @@ def convert_openai_to_codex_request(
             codex_request["parallel_tool_calls"] = True
 
     # 设置 reasoning 配置
-    # 优先级: 请求中的 reasoning_effort > 模型名后缀 > 默认 medium
-    effort = "medium"
+    # 优先级: 请求中的 reasoning_effort > 模型名后缀
+    # 不再默认 medium —— 对不支持 reasoning 的模型（如 gpt-5.2），不发送该参数
+    effort = None
     if thinking_level:
         effort = thinking_level
     # 检查请求中是否有 reasoning_effort 参数
@@ -109,10 +110,7 @@ def convert_openai_to_codex_request(
     if req_effort and str(req_effort).lower() in VALID_THINKING_LEVELS:
         effort = str(req_effort).lower()
 
-    if effort == "none":
-        # none 表示禁用思考
-        pass
-    else:
+    if effort and effort != "none":
         codex_request["reasoning"] = {
             "effort": effort,
             "summary": "auto",
@@ -310,7 +308,7 @@ def convert_anthropic_to_codex_request(
     """
     # 解析模型名称中的思考等级后缀
     base_model, thinking_level = parse_model_thinking_suffix(model)
-    effort = thinking_level if thinking_level else "medium"
+    effort = thinking_level  # None if no suffix
 
     # 从 Claude thinking 配置映射 reasoning effort
     thinking_config = anthropic_request.get("thinking")
@@ -332,7 +330,8 @@ def convert_anthropic_to_codex_request(
         "store": False,
     }
 
-    if effort != "none":
+    # 仅在有明确 thinking 配置时才添加 reasoning（避免对不支持的模型发送该参数）
+    if effort and effort != "none":
         codex_request["reasoning"] = {
             "effort": effort,
             "summary": "auto",
