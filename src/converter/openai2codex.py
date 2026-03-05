@@ -84,7 +84,6 @@ def convert_openai_to_codex_request(
         "instructions": "",
         "stream": stream,
         "store": False,
-        "parallel_tool_calls": True,
     }
 
     # 转换 messages → input
@@ -98,6 +97,7 @@ def convert_openai_to_codex_request(
         codex_tools = _convert_tools(tools)
         if codex_tools:
             codex_request["tools"] = codex_tools
+            codex_request["parallel_tool_calls"] = True
 
     # 设置 reasoning 配置
     # 优先级: 请求中的 reasoning_effort > 模型名后缀 > 默认 medium
@@ -330,7 +330,6 @@ def convert_anthropic_to_codex_request(
         "instructions": "",
         "stream": stream,
         "store": False,
-        "parallel_tool_calls": True,
     }
 
     if effort != "none":
@@ -501,6 +500,7 @@ def convert_anthropic_to_codex_request(
         if codex_tools:
             codex_request["tools"] = codex_tools
             codex_request["tool_choice"] = "auto"
+            codex_request["parallel_tool_calls"] = True
 
     return codex_request
 

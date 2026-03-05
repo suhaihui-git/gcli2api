@@ -152,6 +152,9 @@ async def stream_request(
             body.pop("prompt_cache_retention", None)
             body.pop("safety_identifier", None)
             body.pop("context_management", None)
+            # parallel_tool_calls 仅在有 tools 时才保留
+            if not body.get("tools"):
+                body.pop("parallel_tool_calls", None)
 
             log.info(
                 f"[CODEX] 流式请求: model={model_name}, "
@@ -309,6 +312,9 @@ async def non_stream_request(
             body.pop("prompt_cache_retention", None)
             body.pop("safety_identifier", None)
             body.pop("context_management", None)
+            # parallel_tool_calls 仅在有 tools 时才保留
+            if not body.get("tools"):
+                body.pop("parallel_tool_calls", None)
 
             log.info(
                 f"[CODEX] 非流式请求: model={model_name}, "
