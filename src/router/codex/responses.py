@@ -21,12 +21,12 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     清理 OpenAI Responses API 请求体，使其兼容 Codex 上游
 
-    采用最小化直通策略：仅设置必需字段 + 删除已知不兼容字段
-    不主动注入客户端未发送的参数（include, parallel_tool_calls 等由客户端控制）
+    纯直通策略：仅解析模型后缀 + 确保必需字段 + 删除已知不兼容字段
+    不注入任何客户端未发送的参数（reasoning, include, parallel_tool_calls 等全部由客户端控制）
     """
-    # 解析模型名中的思考等级后缀
+    # 解析模型名中的思考等级后缀，仅用于清理模型名
     model = body.get("model", "")
-    base_model, thinking_level = parse_model_thinking_suffix(model)
+    base_model, _ = parse_model_thinking_suffix(model)
     body["model"] = base_model
 
     # 仅设置上游必需的字段
@@ -40,15 +40,6 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
         "truncation", "user", "context_management",
     ]:
         body.pop(field, None)
-
-    # 如果模型名有思考等级后缀，设置 reasoning（仅在客户端未自行设置时）
-    if thinking_level:
-        if thinking_level == "none":
-            body.pop("reasoning", None)
-        else:
-            body.setdefault("reasoning", {})
-            body["reasoning"]["effort"] = thinking_level
-            body["reasoning"].setdefault("summary", "auto")
 
     # 转换 input 中的 system role → developer
     input_items = body.get("input", [])
@@ -93,6 +84,15 @@ async def responses(
 
     # 清理请求体
     body = _clean_responses_request(body)
+
+    # 调试日志：显示清理后的请求体 top-level keys 和关键字段
+    from config import get_codex_api_url
+    codex_url = await get_codex_api_url()
+    log.info(
+        f"[CODEX-RESPONSES] target={codex_url}/responses, "
+        f"model={body.get('model')}, "
+        f"keys={list(body.keys())}"
+    )
 
     # ========== 非流式请求 ==========
     if not is_streaming:
