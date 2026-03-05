@@ -21,32 +21,19 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     清理 OpenAI Responses API 请求体，使其兼容 Codex 上游
 
-    参考 CLIProxyAPI codex_openai-responses_request.go:
-    - 设置 stream=true, store=false
-    - 添加 include: ["reasoning.encrypted_content"]
-    - 删除不支持的字段
-    - 转换 system role → developer
-    - 处理 context_management
-    - 处理 parallel_tool_calls（仅在有 tools 时保留）
+    采用最小化直通策略：仅设置必需字段 + 删除已知不兼容字段
+    不主动注入客户端未发送的参数（include, parallel_tool_calls 等由客户端控制）
     """
     # 解析模型名中的思考等级后缀
     model = body.get("model", "")
     base_model, thinking_level = parse_model_thinking_suffix(model)
     body["model"] = base_model
 
-    # 设置默认值
-    body["stream"] = True
-    body["store"] = False
+    # 仅设置上游必需的字段
     body.setdefault("instructions", "")
-    body.setdefault("include", ["reasoning.encrypted_content"])
+    body["store"] = False
 
-    # parallel_tool_calls: 仅在有 tools 时才设置
-    if body.get("tools"):
-        body.setdefault("parallel_tool_calls", True)
-    else:
-        body.pop("parallel_tool_calls", None)
-
-    # 删除 Codex 上游不支持的字段
+    # 删除 Codex 上游已知不支持的字段
     for field in [
         "max_output_tokens", "max_completion_tokens",
         "temperature", "top_p", "service_tier",
@@ -54,7 +41,7 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     ]:
         body.pop(field, None)
 
-    # 如果有思考等级后缀，设置 reasoning.effort
+    # 如果模型名有思考等级后缀，设置 reasoning（仅在客户端未自行设置时）
     if thinking_level:
         if thinking_level == "none":
             body.pop("reasoning", None)
@@ -63,14 +50,9 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
             body["reasoning"]["effort"] = thinking_level
             body["reasoning"].setdefault("summary", "auto")
 
-    # 确保 reasoning 有 summary
-    if "reasoning" in body and isinstance(body["reasoning"], dict):
-        body["reasoning"].setdefault("summary", "auto")
-
     # 转换 input 中的 system role → developer
     input_items = body.get("input", [])
     if isinstance(input_items, str):
-        # 字符串 input → 转换为数组格式
         body["input"] = [{
             "type": "message",
             "role": "user",

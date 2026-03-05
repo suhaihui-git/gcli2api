@@ -156,6 +156,9 @@ async def stream_request(
             # parallel_tool_calls 仅在有 tools 时才保留
             if not body.get("tools"):
                 body.pop("parallel_tool_calls", None)
+            # include 仅在有 reasoning 时才保留
+            if not body.get("reasoning"):
+                body.pop("include", None)
 
             log.info(
                 f"[CODEX] 流式请求: model={model_name}, "
@@ -317,6 +320,9 @@ async def non_stream_request(
             # parallel_tool_calls 仅在有 tools 时才保留
             if not body.get("tools"):
                 body.pop("parallel_tool_calls", None)
+            # include 仅在有 reasoning 时才保留
+            if not body.get("reasoning"):
+                body.pop("include", None)
 
             log.info(
                 f"[CODEX] 非流式请求: model={model_name}, "
