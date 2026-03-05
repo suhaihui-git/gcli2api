@@ -767,15 +767,15 @@ function createCredCard(credInfo, manager) {
             ? `<button class="cred-btn enable" data-filename="${filename}" data-action="enable">启用</button>`
             : `<button class="cred-btn disable" data-filename="${filename}" data-action="disable">禁用</button>`
         }
-        <button class="cred-btn view" onclick="toggle${fnPrefix}CredDetails('${pathId}')">查看内容</button>
-        <button class="cred-btn download" onclick="download${fnPrefix}Cred('${filename}')">下载</button>
-        <button class="cred-btn email" onclick="fetch${fnPrefix}UserEmail('${filename}')">查看账号邮箱</button>
-        ${managerType === 'antigravity' ? `<button class="cred-btn" style="background-color: #17a2b8;" onclick="toggleAntigravityQuotaDetails('${pathId}')" title="查看该凭证的额度信息">查看额度</button>` : ''}
-        ${managerType === 'normal' ? `<button class="cred-btn" style="background-color: #00bcd4;" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">设置预览</button>` : ''}
-        ${managerType !== 'codex' ? `<button class="cred-btn" style="background-color: #ff9800;" onclick="verify${fnPrefix}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>` : ''}
-        <button class="cred-btn" style="background-color: #9c27b0;" onclick="test${fnPrefix}Credential('${filename}')" title="测试凭证是否可用">消息测试</button>
-        <button class="cred-btn" style="background-color: #2196f3;" onclick="showChatModal('${filename}', '${managerType}')" title="使用该凭证进行对话">对话</button>
-        <button class="cred-btn" style="background-color: #e91e63;" onclick="toggle${fnPrefix}ErrorDetails('${pathId}')" title="查看该凭证的详细报错信息">查看报错</button>
+        <button class="cred-btn" onclick="toggle${fnPrefix}CredDetails('${pathId}')">查看内容</button>
+        <button class="cred-btn" onclick="download${fnPrefix}Cred('${filename}')">下载</button>
+        <button class="cred-btn" onclick="fetch${fnPrefix}UserEmail('${filename}')">邮箱</button>
+        ${managerType === 'antigravity' ? `<button class="cred-btn quota" onclick="toggleAntigravityQuotaDetails('${pathId}')" title="查看该凭证的额度信息">额度</button>` : ''}
+        ${managerType === 'normal' ? `<button class="cred-btn preview" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">预览</button>` : ''}
+        ${managerType !== 'codex' ? `<button class="cred-btn verify" onclick="verify${fnPrefix}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>` : ''}
+        <button class="cred-btn test" onclick="test${fnPrefix}Credential('${filename}')" title="测试凭证是否可用">测试</button>
+        <button class="cred-btn chat" onclick="showChatModal('${filename}', '${managerType}')" title="使用该凭证进行对话">对话</button>
+        <button class="cred-btn error-view" onclick="toggle${fnPrefix}ErrorDetails('${pathId}')" title="查看该凭证的详细报错信息">报错</button>
         <button class="cred-btn delete" data-filename="${filename}" data-action="delete">删除</button>
     `;
 
