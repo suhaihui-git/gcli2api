@@ -1100,57 +1100,6 @@
 
         .feature-item strong { color: var(--text-primary); }
 
-        /* ====== API Address Card ====== */
-        .api-addr-card {
-            background: var(--card-bg);
-            border-radius: var(--radius-sm);
-            padding: 12px 14px;
-            margin-bottom: 14px;
-            box-shadow: var(--shadow-sm);
-        }
-        .api-addr-card .api-addr-title {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .api-addr-card .api-addr-title svg { width: 13px; height: 13px; opacity: 0.5; }
-        .api-addr-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 0;
-        }
-        .api-addr-row + .api-addr-row { border-top: 1px solid var(--divider); }
-        .api-addr-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            min-width: 72px;
-            flex-shrink: 0;
-        }
-        .api-addr-url {
-            font-family: 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 11px;
-            color: var(--accent);
-            background: rgba(0, 122, 255, 0.06);
-            padding: 3px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background var(--transition), color var(--transition);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex: 1;
-            min-width: 0;
-        }
-        .api-addr-url:hover { background: rgba(0, 122, 255, 0.12); }
-        .api-addr-url.copied { background: rgba(52, 199, 89, 0.12); color: var(--success); }
 
         /* ====== Docs Page ====== */
         .doc-section { margin-bottom: 16px; }
@@ -1505,21 +1454,6 @@
                         </div>
                     </div>
 
-                    <!-- API地址 -->
-                    <div class="api-addr-card">
-                        <div class="api-addr-title">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                            API 地址（点击复制）
-                        </div>
-                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mGcliOpenaiUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mGcliClaudeUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="mGcliGeminiUrl" onclick="cpAddr(this)"></code></div>
-                        <script>
-                            (function(){var mo=location.origin;document.getElementById('mGcliOpenaiUrl').textContent=mo+'/v1';document.getElementById('mGcliClaudeUrl').textContent=mo+'/v1';document.getElementById('mGcliGeminiUrl').textContent=mo;})();
-                            function cpAddr(el){navigator.clipboard.writeText(el.textContent).then(function(){el.classList.add('copied');setTimeout(function(){el.classList.remove('copied');},900);});}
-                        </script>
-                    </div>
-
                     <!-- 凭证上传 -->
                     <div class="card">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '&#9654;' : '&#9660;';">
@@ -1641,20 +1575,6 @@
                         </div>
                     </div>
 
-                    <!-- API地址 -->
-                    <div class="api-addr-card">
-                        <div class="api-addr-title">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                            API 地址（点击复制）
-                        </div>
-                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mAntOpenaiUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mAntClaudeUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="mAntGeminiUrl" onclick="cpAddr(this)"></code></div>
-                        <script>
-                            (function(){var mo2=location.origin;document.getElementById('mAntOpenaiUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntClaudeUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntGeminiUrl').textContent=mo2+'/antigravity';})();
-                        </script>
-                    </div>
-
                     <!-- 凭证上传 -->
                     <div class="card">
                         <div class="collapsible-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapsible-icon').textContent = this.nextElementSibling.style.display === 'none' ? '&#9654;' : '&#9660;';">
@@ -1774,20 +1694,6 @@
                                 <button class="download-all-btn" onclick="downloadAllCodexCreds()">下载</button>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- API地址 -->
-                    <div class="api-addr-card">
-                        <div class="api-addr-title">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                            API 地址（点击复制）
-                        </div>
-                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mCdxOpenaiUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mCdxClaudeUrl" onclick="cpAddr(this)"></code></div>
-                        <div class="api-addr-row"><span class="api-addr-label">Responses</span><code class="api-addr-url" id="mCdxResponsesUrl" onclick="cpAddr(this)"></code></div>
-                        <script>
-                            (function(){var mo3=location.origin;document.getElementById('mCdxOpenaiUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxClaudeUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxResponsesUrl').textContent=mo3+'/codex/v1';})();
-                        </script>
                     </div>
 
                     <!-- 凭证上传 -->
