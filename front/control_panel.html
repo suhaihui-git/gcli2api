@@ -1671,6 +1671,70 @@
             color: var(--text-primary);
         }
 
+        /* ====== API Address Card ====== */
+        .api-addr-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+        .api-addr-card .api-addr-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .api-addr-card .api-addr-title svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.5;
+        }
+        .api-addr-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+        }
+        .api-addr-row + .api-addr-row {
+            border-top: 1px solid var(--divider);
+        }
+        .api-addr-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 78px;
+            flex-shrink: 0;
+        }
+        .api-addr-url {
+            font-family: 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            color: var(--accent);
+            background: rgba(0, 122, 255, 0.06);
+            padding: 3px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background var(--transition), color var(--transition);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+        .api-addr-url:hover {
+            background: rgba(0, 122, 255, 0.12);
+        }
+        .api-addr-url.copied {
+            background: rgba(52, 199, 89, 0.12);
+            color: var(--success);
+        }
+
         /* ====== Docs Page ====== */
         .doc-section { margin-bottom: 20px; }
         .doc-section-title {
@@ -2235,16 +2299,17 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="gcliOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="gcliClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Gemini格式</td><td><code id="gcliGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="gcliOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="gcliClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="gcliGeminiUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var o=window.location.origin;document.getElementById('gcliOpenaiUrl').textContent=o+'/v1';document.getElementById('gcliClaudeUrl').textContent=o+'/v1';document.getElementById('gcliGeminiUrl').textContent=o;})();
-                            function cpUrl(el){navigator.clipboard.writeText(el.textContent).then(function(){var s=el.style.background;el.style.background='#b7f0b7';setTimeout(function(){el.style.background=s;},800);});}
+                            (function(){var o=location.origin;document.getElementById('gcliOpenaiUrl').textContent=o+'/v1';document.getElementById('gcliClaudeUrl').textContent=o+'/v1';document.getElementById('gcliGeminiUrl').textContent=o;})();
+                            function cpAddr(el){navigator.clipboard.writeText(el.textContent).then(function(){el.classList.add('copied');setTimeout(function(){el.classList.remove('copied');},900);});}
                         </script>
                     </div>
 
@@ -2392,15 +2457,16 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="antOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="antClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Gemini格式</td><td><code id="antGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="antOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="antClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="antGeminiUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var o2=window.location.origin;document.getElementById('antOpenaiUrl').textContent=o2+'/antigravity/v1';document.getElementById('antClaudeUrl').textContent=o2+'/antigravity/v1';document.getElementById('antGeminiUrl').textContent=o2+'/antigravity';})();
+                            (function(){var o2=location.origin;document.getElementById('antOpenaiUrl').textContent=o2+'/antigravity/v1';document.getElementById('antClaudeUrl').textContent=o2+'/antigravity/v1';document.getElementById('antGeminiUrl').textContent=o2+'/antigravity';})();
                         </script>
                     </div>
 
@@ -2548,14 +2614,16 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="cdxOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="cdxClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="cdxOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="cdxClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Responses</span><code class="api-addr-url" id="cdxResponsesUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var o3=window.location.origin;document.getElementById('cdxOpenaiUrl').textContent=o3+'/codex/v1';document.getElementById('cdxClaudeUrl').textContent=o3+'/codex/v1';})();
+                            (function(){var o3=location.origin;document.getElementById('cdxOpenaiUrl').textContent=o3+'/codex/v1';document.getElementById('cdxClaudeUrl').textContent=o3+'/codex/v1';document.getElementById('cdxResponsesUrl').textContent=o3+'/codex/v1';})();
                         </script>
                     </div>
 

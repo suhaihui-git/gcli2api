@@ -389,7 +389,12 @@ function createUploadManager(type) {
         },
 
         addFiles(files) {
+            const MAX_FILES = 500;
             files.forEach(file => {
+                if (this.selectedFiles.length >= MAX_FILES) {
+                    showStatus(`最多只能选择 ${MAX_FILES} 个文件`, 'error');
+                    return;
+                }
                 const isValid = file.type === 'application/json' || file.name.endsWith('.json') ||
                     file.type === 'application/zip' || file.name.endsWith('.zip');
 
@@ -420,6 +425,8 @@ function createUploadManager(type) {
 
             section.classList.remove('hidden');
             list.innerHTML = '';
+            list.style.maxHeight = '240px';
+            list.style.overflowY = 'auto';
 
             this.selectedFiles.forEach((file, index) => {
                 const isZip = file.name.endsWith('.zip');

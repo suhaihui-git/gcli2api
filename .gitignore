@@ -96,4 +96,7 @@ log.txt
 *.temp
 *.bak
 
+# Archives
+*.zip
+
 tools/

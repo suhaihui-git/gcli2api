@@ -1100,6 +1100,58 @@
 
         .feature-item strong { color: var(--text-primary); }
 
+        /* ====== API Address Card ====== */
+        .api-addr-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow-sm);
+        }
+        .api-addr-card .api-addr-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .api-addr-card .api-addr-title svg { width: 13px; height: 13px; opacity: 0.5; }
+        .api-addr-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+        }
+        .api-addr-row + .api-addr-row { border-top: 1px solid var(--divider); }
+        .api-addr-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 72px;
+            flex-shrink: 0;
+        }
+        .api-addr-url {
+            font-family: 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+            color: var(--accent);
+            background: rgba(0, 122, 255, 0.06);
+            padding: 3px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background var(--transition), color var(--transition);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+        .api-addr-url:hover { background: rgba(0, 122, 255, 0.12); }
+        .api-addr-url.copied { background: rgba(52, 199, 89, 0.12); color: var(--success); }
+
         /* ====== Docs Page ====== */
         .doc-section { margin-bottom: 16px; }
         .doc-section-title {
@@ -1454,16 +1506,17 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mGcliOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="mGcliClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Gemini格式</td><td><code id="mGcliGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mGcliOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mGcliClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="mGcliGeminiUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var mo=window.location.origin;document.getElementById('mGcliOpenaiUrl').textContent=mo+'/v1';document.getElementById('mGcliClaudeUrl').textContent=mo+'/v1';document.getElementById('mGcliGeminiUrl').textContent=mo;})();
-                            function cpUrl(el){navigator.clipboard.writeText(el.textContent).then(function(){var s=el.style.background;el.style.background='#b7f0b7';setTimeout(function(){el.style.background=s;},800);});}
+                            (function(){var mo=location.origin;document.getElementById('mGcliOpenaiUrl').textContent=mo+'/v1';document.getElementById('mGcliClaudeUrl').textContent=mo+'/v1';document.getElementById('mGcliGeminiUrl').textContent=mo;})();
+                            function cpAddr(el){navigator.clipboard.writeText(el.textContent).then(function(){el.classList.add('copied');setTimeout(function(){el.classList.remove('copied');},900);});}
                         </script>
                     </div>
 
@@ -1589,15 +1642,16 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mAntOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="mAntClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Gemini格式</td><td><code id="mAntGeminiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mAntOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mAntClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Gemini 格式</span><code class="api-addr-url" id="mAntGeminiUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var mo2=window.location.origin;document.getElementById('mAntOpenaiUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntClaudeUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntGeminiUrl').textContent=mo2+'/antigravity';})();
+                            (function(){var mo2=location.origin;document.getElementById('mAntOpenaiUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntClaudeUrl').textContent=mo2+'/antigravity/v1';document.getElementById('mAntGeminiUrl').textContent=mo2+'/antigravity';})();
                         </script>
                     </div>
 
@@ -1723,14 +1777,16 @@
                     </div>
 
                     <!-- API地址 -->
-                    <div style="background:#f0f7ff;border:1px solid #b8d4f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
-                        <strong>API地址（点击复制）：</strong>
-                        <table style="margin-top:6px;border-collapse:collapse;width:100%;">
-                            <tr><td style="color:#666;width:90px;">OpenAI格式</td><td><code id="mCdxOpenaiUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                            <tr><td style="color:#666;">Claude格式</td><td><code id="mCdxClaudeUrl" onclick="cpUrl(this)" title="点击复制" style="background:#e8f0fe;padding:2px 6px;border-radius:3px;cursor:pointer;"></code></td></tr>
-                        </table>
+                    <div class="api-addr-card">
+                        <div class="api-addr-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            API 地址（点击复制）
+                        </div>
+                        <div class="api-addr-row"><span class="api-addr-label">OpenAI 格式</span><code class="api-addr-url" id="mCdxOpenaiUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Claude 格式</span><code class="api-addr-url" id="mCdxClaudeUrl" onclick="cpAddr(this)"></code></div>
+                        <div class="api-addr-row"><span class="api-addr-label">Responses</span><code class="api-addr-url" id="mCdxResponsesUrl" onclick="cpAddr(this)"></code></div>
                         <script>
-                            (function(){var mo3=window.location.origin;document.getElementById('mCdxOpenaiUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxClaudeUrl').textContent=mo3+'/codex/v1';})();
+                            (function(){var mo3=location.origin;document.getElementById('mCdxOpenaiUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxClaudeUrl').textContent=mo3+'/codex/v1';document.getElementById('mCdxResponsesUrl').textContent=mo3+'/codex/v1';})();
                         </script>
                     </div>
 
