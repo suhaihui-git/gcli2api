@@ -30,6 +30,7 @@ MODE = "codex"
 _SAFE_TO_STRIP_PARAMS = {
     "reasoning", "include", "parallel_tool_calls",
     "store", "stream", "reasoning.effort", "reasoning.summary",
+    "tools", "tool_choice",
 }
 
 
