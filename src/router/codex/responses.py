@@ -37,6 +37,7 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     # 设置默认值
     body["stream"] = True
     body["store"] = False
+    body.setdefault("instructions", "")
     body.setdefault("include", ["reasoning.encrypted_content"])
 
     # parallel_tool_calls: 仅在有 tools 时才设置

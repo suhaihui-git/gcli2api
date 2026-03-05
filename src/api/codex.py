@@ -148,6 +148,7 @@ async def stream_request(
 
             # 确保 stream=true 并清理不支持的字段
             body["stream"] = True
+            body.setdefault("instructions", "")
             body.pop("previous_response_id", None)
             body.pop("prompt_cache_retention", None)
             body.pop("safety_identifier", None)
@@ -308,6 +309,7 @@ async def non_stream_request(
             # compact 端点: 删除不支持的字段
             body.pop("stream", None)
             body.pop("store", None)
+            body.setdefault("instructions", "")
             body.pop("previous_response_id", None)
             body.pop("prompt_cache_retention", None)
             body.pop("safety_identifier", None)
