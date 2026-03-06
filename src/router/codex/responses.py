@@ -21,25 +21,22 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     清理 OpenAI Responses API 请求体，使其兼容 Codex 上游
 
-    纯直通策略：仅解析模型后缀 + 确保必需字段 + 删除已知不兼容字段
-    不注入任何客户端未发送的参数（reasoning, include, parallel_tool_calls 等全部由客户端控制）
+    对齐 CPA 的 Responses 规范化策略，但保持 reasoning 为客户端显式 opt-in：
+    - 仅解析模型后缀，不主动注入 reasoning
+    - 显式设置 stream/store/parallel_tool_calls/include
+    - 转换 string input 与 system role
+    - 删除已知不兼容字段
     """
     # 解析模型名中的思考等级后缀，仅用于清理模型名
     model = body.get("model", "")
     base_model, _ = parse_model_thinking_suffix(model)
     body["model"] = base_model
 
-    # 仅设置上游必需的字段
-    body.setdefault("instructions", "")
+    # 对齐 CPA 的通用请求规范化，但不在这里注入 reasoning
+    body["stream"] = body.get("stream", True)
     body["store"] = False
-
-    # 删除 Codex 上游已知不支持的字段
-    for field in [
-        "max_output_tokens", "max_completion_tokens",
-        "temperature", "top_p", "service_tier",
-        "truncation", "user", "context_management",
-    ]:
-        body.pop(field, None)
+    body["parallel_tool_calls"] = True
+    body["include"] = ["reasoning.encrypted_content"]
 
     # 转换 input 中的 system role → developer
     input_items = body.get("input", [])
@@ -53,6 +50,22 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
         for item in input_items:
             if isinstance(item, dict) and item.get("role") == "system":
                 item["role"] = "developer"
+
+    # service_tier 仅保留 priority
+    if body.get("service_tier") != "priority":
+        body.pop("service_tier", None)
+
+    # 删除 Codex 上游已知不支持的字段
+    for field in [
+        "max_output_tokens",
+        "max_completion_tokens",
+        "temperature",
+        "top_p",
+        "truncation",
+        "user",
+        "context_management",
+    ]:
+        body.pop(field, None)
 
     return body
 

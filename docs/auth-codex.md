@@ -223,7 +223,8 @@ grant_type=refresh_token
 Content-Type: application/json
 Authorization: Bearer <access_token>
 Version: 0.101.0
-Session_id: <UUID>
+Session_id: <UUID 或显式 prompt_cache_key>
+Conversation_id: <仅在显式 prompt_cache_key 时发送>
 User-Agent: codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464
 Accept: text/event-stream
 Connection: Keep-Alive
@@ -262,7 +263,8 @@ Chatgpt-Account-Id: <account_id>
 | 请求头 | 说明 |
 |--------|------|
 | `Version` | Codex CLI 版本号，当前 `0.101.0` |
-| `Session_id` | 每次请求生成新 UUID |
+| `Session_id` | 默认每次请求生成新 UUID；当请求显式提供 `prompt_cache_key` 时，绑定为该值 |
+| `Conversation_id` | 仅当请求显式提供 `prompt_cache_key` 时发送，值与 `prompt_cache_key` / `Session_id` 相同 |
 | `Originator` | 固定值 `codex_cli_rs`，仅 OAuth 凭证使用 |
 | `Chatgpt-Account-Id` | ChatGPT 账户 ID，仅 OAuth 凭证且有 account_id 时发送 |
 
@@ -310,7 +312,7 @@ Codex 的 429 错误包含重置时间信息：
 | **id_token 解析** | JWT 无签名验证解析，提取 `account_id` 和 `plan_type` |
 | **Account ID** | Team 用户必须在请求头发送 `Chatgpt-Account-Id` |
 | **Originator 头** | OAuth 凭证必须发送 `Originator: codex_cli_rs` |
-| **Session ID** | 每次请求生成新 UUID，放在 `Session_id` 头中 |
+| **Session ID** | 默认每次请求生成新 UUID；显式提供 `prompt_cache_key` 时与 `Conversation_id` 绑定为同一值 |
 | **API 格式** | 使用 OpenAI Responses API 格式（非 Chat Completions） |
 | **回调路径** | 必须是 `/auth/callback`（OpenAI 注册的 redirect_uri 要求） |
 | **codex_cli_simplified_flow** | 认证 URL 中的特殊参数，启用简化登录流程 |

@@ -135,18 +135,25 @@ def convert_openai_to_codex_request(
             elif tc_type:
                 codex_request["tool_choice"] = tool_choice
 
-    # 转换 response_format
+    # 转换 response_format / text.verbosity
+    text_config = {}
+
     response_format = openai_request.get("response_format")
     if response_format:
         format_type = response_format.get("type")
         if format_type == "json_schema":
-            codex_request["text"] = {
-                "format": response_format,
-            }
+            text_config["format"] = response_format
         elif format_type == "json_object":
-            codex_request["text"] = {
-                "format": {"type": "json_object"},
-            }
+            text_config["format"] = {"type": "json_object"}
+
+    text_options = openai_request.get("text")
+    if isinstance(text_options, dict):
+        verbosity = text_options.get("verbosity")
+        if verbosity is not None:
+            text_config["verbosity"] = verbosity
+
+    if text_config:
+        codex_request["text"] = text_config
 
     return codex_request
 
@@ -246,6 +253,19 @@ def _make_content_parts(content: Any, text_type: str) -> List[Dict[str, Any]]:
                         "type": "input_image",
                         "image_url": url,
                     })
+                elif item_type == "file":
+                    file_info = item.get("file", {})
+                    if isinstance(file_info, dict):
+                        file_data = file_info.get("file_data")
+                        if file_data:
+                            file_part = {
+                                "type": "input_file",
+                                "file_data": file_data,
+                            }
+                            filename = file_info.get("filename")
+                            if filename:
+                                file_part["filename"] = filename
+                            parts.append(file_part)
         return parts
 
     return [{"type": text_type, "text": str(content)}]

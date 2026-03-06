@@ -30,7 +30,7 @@ MODE = "codex"
 _SAFE_TO_STRIP_PARAMS = {
     "reasoning", "include", "parallel_tool_calls",
     "store", "stream", "reasoning.effort", "reasoning.summary",
-    "tools", "tool_choice",
+    "tools", "tool_choice", "prompt_cache_key",
 }
 
 
@@ -104,6 +104,29 @@ def _extract_codex_creds(credential_data: Dict[str, Any]) -> Tuple[str, Optional
     # 如果有 refresh_token 或 id_token，认为是 OAuth 凭证
     is_oauth = bool(credential_data.get("refresh_token") or credential_data.get("id_token"))
     return access_token, account_id, is_oauth
+
+
+def _apply_prompt_cache_identity(body: Dict[str, Any], request_headers: Dict[str, str]) -> None:
+    """
+    绑定显式 prompt_cache_key 到请求体和会话头。
+
+    安全策略：
+    - 仅信任请求体中显式提供的 prompt_cache_key
+    - 若存在，则将 prompt_cache_key / Conversation_id / Session_id 绑定为同一值
+    - 若不存在，则保留现有随机 Session_id 行为
+    """
+    prompt_cache_key = body.get("prompt_cache_key")
+    if prompt_cache_key is None:
+        return
+
+    cache_key = str(prompt_cache_key).strip()
+    if not cache_key or "\r" in cache_key or "\n" in cache_key:
+        body.pop("prompt_cache_key", None)
+        return
+
+    body["prompt_cache_key"] = cache_key
+    request_headers["Conversation_id"] = cache_key
+    request_headers["Session_id"] = cache_key
 
 
 async def stream_request(
@@ -184,6 +207,8 @@ async def stream_request(
             # include 仅在有 reasoning 时才保留
             if not body.get("reasoning"):
                 body.pop("include", None)
+
+            _apply_prompt_cache_identity(body, request_headers)
 
             log.info(
                 f"[CODEX] 流式请求: model={model_name}, "
@@ -358,6 +383,8 @@ async def non_stream_request(
             # include 仅在有 reasoning 时才保留
             if not body.get("reasoning"):
                 body.pop("include", None)
+
+            _apply_prompt_cache_identity(body, request_headers)
 
             log.info(
                 f"[CODEX] 非流式请求: model={model_name}, "
