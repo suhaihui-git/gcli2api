@@ -29,6 +29,7 @@ CODEX_MODEL_DEFINITIONS: List[Tuple[str, List[str]]] = [
     ("gpt-5.2-codex", ["low", "medium", "high", "xhigh"]),
     ("gpt-5.3-codex", ["low", "medium", "high", "xhigh"]),
     ("gpt-5.3-codex-spark", ["low", "medium", "high", "xhigh"]),
+    ("gpt-5.4", ["low", "medium", "high", "xhigh"]),
     # GPT-4.1 系列
     ("gpt-4.1-nano", []),
 ]

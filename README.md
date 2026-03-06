@@ -955,6 +955,7 @@ curl -X POST "http://127.0.0.1:7861/codex/v1/messages" \
 | `gpt-5.2-codex` | low, medium, high, xhigh |
 | `gpt-5.3-codex` | low, medium, high, xhigh |
 | `gpt-5.3-codex-spark` | low, medium, high, xhigh |
+| `gpt-5.4` | low, medium, high, xhigh |
 | `gpt-4.1-nano` | - |
 
 **环境变量配置：**
