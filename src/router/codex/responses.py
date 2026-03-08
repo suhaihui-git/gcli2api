@@ -23,7 +23,7 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
 
     对齐 CPA 的 Responses 规范化策略，但保持 reasoning 为客户端显式 opt-in：
     - 仅解析模型后缀，不主动注入 reasoning
-    - 显式设置 stream/store/parallel_tool_calls/include
+    - 显式设置 stream/store
     - 转换 string input 与 system role
     - 删除已知不兼容字段
     """
@@ -35,8 +35,9 @@ def _clean_responses_request(body: Dict[str, Any]) -> Dict[str, Any]:
     # 对齐 CPA 的通用请求规范化，但不在这里注入 reasoning
     body["stream"] = body.get("stream", True)
     body["store"] = False
-    body["parallel_tool_calls"] = True
-    body["include"] = ["reasoning.encrypted_content"]
+
+    if not body["stream"]:
+        body["_prefer_compact"] = True
 
     # 转换 input 中的 system role → developer
     input_items = body.get("input", [])
@@ -140,10 +141,11 @@ async def responses(
             return JSONResponse(content=codex_response, status_code=status_code)
 
         # 恢复 instructions（参考 CPA 的 response 处理）
-        if "instructions" in codex_response and original_instructions:
-            codex_response["instructions"] = original_instructions
+        response_obj = codex_response.get("response") if isinstance(codex_response.get("response"), dict) else codex_response
+        if "instructions" in response_obj and original_instructions:
+            response_obj["instructions"] = original_instructions
 
-        return JSONResponse(content=codex_response, status_code=200)
+        return JSONResponse(content=response_obj, status_code=200)
 
     # ========== 流式请求 ==========
     async def stream_generator():

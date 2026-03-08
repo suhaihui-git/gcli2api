@@ -65,6 +65,21 @@ function createCredsManager(type) {
         currentCooldownFilter: 'all',
         currentPreviewFilter: 'all',
         statsData: { total: 0, normal: 0, disabled: 0 },
+        usageResults: {},
+        latestFailedFiles: [],
+        scanRunning: false,
+        scanSummary: {
+            mode: '',
+            processed: 0,
+            total: 0,
+            success: 0,
+            failed: 0,
+            failedSetSize: 0,
+            concurrency: 0,
+            message: '未执行查询'
+        },
+        scanMode: '',
+        openUsageDetails: new Set(),
 
         // API端点
         getEndpoint: (action) => {
@@ -79,7 +94,9 @@ function createCredsManager(type) {
                 refreshAllEmails: `./creds/refresh-all-emails`,
                 deduplicate: `./creds/deduplicate-by-email`,
                 verifyProject: `./creds/verify-project`,
-                quota: `./creds/quota`
+                quota: `./creds/quota`,
+                codexUsage: `./creds/codex-usage`,
+                codexUsageBatch: `./creds/codex-usage/batch`
             };
             return endpoints[action] || '';
         },
@@ -123,6 +140,13 @@ function createCredsManager(type) {
                 if (response.ok) {
                     this.data = {};
                     data.items.forEach(item => {
+                        const persistedUsageResult = this.type === 'codex' ? (item.usage_result || null) : null;
+                        const usageResult = this.type === 'codex'
+                            ? (this.usageResults[item.filename] || persistedUsageResult)
+                            : null;
+                        if (this.type === 'codex' && persistedUsageResult && !this.usageResults[item.filename]) {
+                            this.usageResults[item.filename] = { filename: item.filename, ...persistedUsageResult };
+                        }
                         this.data[item.filename] = {
                             filename: item.filename,
                             status: {
@@ -132,7 +156,8 @@ function createCredsManager(type) {
                             },
                             user_email: item.user_email,
                             model_cooldowns: item.model_cooldowns || {},
-                            preview: item.preview  // 保存preview字段
+                            preview: item.preview,
+                            usageResult
                         };
                     });
 
@@ -148,6 +173,9 @@ function createCredsManager(type) {
                     this.filteredData = this.data;
                     this.renderList();
                     this.updatePagination();
+                    if (this.type === 'codex') {
+                        this.updateUsageSummaryDisplay();
+                    }
 
                     let msg = `已加载 ${data.total} 个${type === 'antigravity' ? 'Antigravity' : type === 'codex' ? 'Codex' : ''}凭证文件`;
                     if (this.currentStatusFilter !== 'all') {
@@ -181,6 +209,226 @@ function createCredsManager(type) {
             document.getElementById(this.getElementId('StatTotal')).textContent = this.statsData.total;
             document.getElementById(this.getElementId('StatNormal')).textContent = this.statsData.normal;
             document.getElementById(this.getElementId('StatDisabled')).textContent = this.statsData.disabled;
+        },
+
+        updateUsageSummaryDisplay() {
+            if (this.type !== 'codex') return;
+            const processedEl = document.getElementById('codexUsageProcessed');
+            const successEl = document.getElementById('codexUsageSuccess');
+            const failedEl = document.getElementById('codexUsageFailed');
+            const failedSetEl = document.getElementById('codexUsageFailedSet');
+            const concurrencyEl = document.getElementById('codexUsageConcurrency');
+            const messageEl = document.getElementById('codexUsageSummaryText');
+            const balanceBtn = document.getElementById('codexQueryAllBalanceBtn');
+            const scanBtn = document.getElementById('codexBatchStatusBtn');
+            const deleteBtn = document.getElementById('codexDeleteFailedBtn');
+
+            if (processedEl) processedEl.textContent = `${this.scanSummary.processed}/${this.scanSummary.total}`;
+            if (successEl) successEl.textContent = this.scanSummary.success;
+            if (failedEl) failedEl.textContent = this.scanSummary.failed;
+            if (failedSetEl) failedSetEl.textContent = this.scanSummary.failedSetSize;
+            if (concurrencyEl) concurrencyEl.textContent = this.scanSummary.concurrency;
+            if (messageEl) messageEl.textContent = this.scanSummary.message || '未执行查询';
+
+            if (balanceBtn) balanceBtn.disabled = this.scanRunning;
+            if (scanBtn) scanBtn.disabled = this.scanRunning;
+            if (deleteBtn) deleteBtn.disabled = this.scanRunning || this.latestFailedFiles.length === 0;
+        },
+
+        storeUsageResult(result) {
+            if (!result || !result.filename) return;
+            this.usageResults[result.filename] = result;
+            if (this.data[result.filename]) {
+                this.data[result.filename].usageResult = result;
+                this.filteredData[result.filename] = this.data[result.filename];
+            }
+        },
+
+        applyUsageResults(results) {
+            if (!Array.isArray(results)) return;
+            results.forEach(result => this.storeUsageResult(result));
+        },
+
+        setScanSummary(summary = {}) {
+            this.scanSummary = {
+                mode: summary.mode || this.scanSummary.mode || '',
+                processed: Number(summary.processed || 0),
+                total: Number(summary.total || 0),
+                success: Number(summary.success || 0),
+                failed: Number(summary.failed || 0),
+                failedSetSize: Number(summary.failedSetSize || 0),
+                concurrency: Number(summary.concurrency || 0),
+                message: summary.message || '未执行查询'
+            };
+            this.updateUsageSummaryDisplay();
+        },
+
+        async queryUsage(filename, options = {}) {
+            if (this.type !== 'codex') return null;
+            const silent = Boolean(options.silent);
+            const shouldRender = options.render !== false;
+            if (!silent) showStatus(`正在查询余额: ${filename}`, 'info');
+
+            try {
+                const response = await authFetch(`${this.getEndpoint('codexUsage')}/${encodeURIComponent(filename)}?${this.getModeParam()}`, {
+                    method: 'GET'
+                });
+                const data = await response.json();
+                this.storeUsageResult(data);
+                if (response.status === 200) {
+                    if (!silent) showStatus(`余额查询成功: ${filename}`, 'success');
+                } else {
+                    if (!silent) showStatus(`余额查询异常: ${filename} (HTTP ${data.status_code || response.status})`, 'error');
+                }
+                this.openUsageDetails.add(filename);
+                if (shouldRender && this.data[filename]) this.renderList();
+                this.updateUsageSummaryDisplay();
+                return data;
+            } catch (error) {
+                if (error.message !== 'AUTH_EXPIRED' && !silent) {
+                    showStatus(`余额查询失败: ${error.message}`, 'error');
+                }
+                throw error;
+            }
+        },
+
+        async runUsageScan(scanMode = 'batch') {
+            if (this.type !== 'codex') return null;
+            if (this.scanRunning) {
+                showStatus('Codex usage 查询正在进行中', 'info');
+                return null;
+            }
+
+            const selectedFilenames = Array.from(this.selectedFiles || []).filter(Boolean);
+            const useSelectedOnly = selectedFilenames.length > 0;
+            const concurrencyLimit = 6;
+            const targetLabel = useSelectedOnly ? `选中的 ${selectedFilenames.length} 个` : '全部凭证';
+            const startMessage = scanMode === 'balance'
+                ? `正在查询${targetLabel}余额，并发 ${concurrencyLimit}...`
+                : `正在查询${targetLabel}状态，并发 ${concurrencyLimit}...`;
+
+            this.scanRunning = true;
+            this.scanMode = scanMode;
+            this.setScanSummary({
+                mode: scanMode,
+                processed: 0,
+                total: useSelectedOnly ? selectedFilenames.length : 0,
+                success: 0,
+                failed: 0,
+                failedSetSize: this.latestFailedFiles.length,
+                concurrency: 0,
+                message: startMessage
+            });
+
+            try {
+                const response = await authFetch(`${this.getEndpoint('codexUsageBatch')}?${this.getModeParam()}&all_pages=${useSelectedOnly ? 'false' : 'true'}`, {
+                    method: 'POST',
+                    body: JSON.stringify(useSelectedOnly ? { filenames: selectedFilenames } : {})
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || data.error || '批量查询失败');
+                }
+
+                this.applyUsageResults(data.results || []);
+                const currentFailedFiles = Array.isArray(data.failed_filenames) ? data.failed_filenames.slice() : [];
+                if (scanMode === 'status') {
+                    this.latestFailedFiles = currentFailedFiles;
+                }
+                this.setScanSummary({
+                    mode: scanMode,
+                    processed: data.processed || 0,
+                    total: data.total || 0,
+                    success: data.success_count || 0,
+                    failed: data.failed_count || 0,
+                    failedSetSize: this.latestFailedFiles.length,
+                    concurrency: 0,
+                    message: `${data.message || '查询完成'} (并发 ${data.concurrency_limit || concurrencyLimit})`
+                });
+                showStatus(
+                    scanMode === 'balance'
+                        ? (useSelectedOnly ? `选中余额查询完成 (${selectedFilenames.length} 个，并发 ${data.concurrency_limit || concurrencyLimit})` : `一键查询余额完成 (并发 ${data.concurrency_limit || concurrencyLimit})`)
+                        : (useSelectedOnly ? `选中状态查询完成 (${selectedFilenames.length} 个，并发 ${data.concurrency_limit || concurrencyLimit})` : `批量查询状态完成 (并发 ${data.concurrency_limit || concurrencyLimit})`),
+                    'success'
+                );
+                this.renderList();
+                return data;
+            } catch (error) {
+                if (error.message !== 'AUTH_EXPIRED') {
+                    showStatus(`Codex usage 查询失败: ${error.message}`, 'error');
+                }
+                this.setScanSummary({
+                    mode: scanMode,
+                    processed: 0,
+                    total: useSelectedOnly ? selectedFilenames.length : 0,
+                    success: 0,
+                    failed: 0,
+                    failedSetSize: this.latestFailedFiles.length,
+                    concurrency: 0,
+                    message: `查询失败: ${error.message}`
+                });
+                throw error;
+            } finally {
+                this.scanRunning = false;
+                this.updateUsageSummaryDisplay();
+            }
+        },
+
+
+        async deleteLatestFailedFiles() {
+            if (this.type !== 'codex') return;
+            const failedFiles = this.latestFailedFiles.slice();
+            if (failedFiles.length === 0) {
+                showStatus('当前没有可删除的异常凭证', 'info');
+                return;
+            }
+
+            if (!confirm(`确定要删除最近一次状态扫描失败的 ${failedFiles.length} 个 Codex 凭证吗？\n注意：此操作不可恢复！`)) {
+                return;
+            }
+
+            try {
+                showStatus(`正在删除最近失败的 ${failedFiles.length} 个凭证...`, 'info');
+                const response = await authFetch(`${this.getEndpoint('batchAction')}?${this.getModeParam()}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'delete', filenames: failedFiles })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || data.error || '删除失败');
+                }
+
+                const successCount = data.success_count || 0;
+                const errorEntries = Array.isArray(data.errors) ? data.errors : [];
+                const failedSet = new Set(
+                    errorEntries
+                        .map(item => typeof item === 'string' ? item.split(':')[0].trim() : '')
+                        .filter(Boolean)
+                );
+                this.latestFailedFiles = failedFiles.filter(name => failedSet.has(name));
+                failedFiles.forEach(name => {
+                    if (!failedSet.has(name)) {
+                        delete this.usageResults[name];
+                        this.openUsageDetails.delete(name);
+                    }
+                });
+                this.setScanSummary({
+                    mode: this.scanMode || 'delete',
+                    processed: this.scanSummary.processed,
+                    total: this.scanSummary.total,
+                    success: this.scanSummary.success,
+                    failed: this.scanSummary.failed,
+                    failedSetSize: this.latestFailedFiles.length,
+                    message: `删除完成：成功 ${successCount}/${failedFiles.length}`
+                });
+                showStatus(`删除完成：成功 ${successCount}/${failedFiles.length}`, 'success');
+                await this.refresh();
+            } catch (error) {
+                if (error.message !== 'AUTH_EXPIRED') {
+                    showStatus(`删除异常凭证失败: ${error.message}`, 'error');
+                }
+                throw error;
+            }
         },
 
         // 渲染凭证列表
@@ -660,6 +908,109 @@ function formatCooldownTime(remainingSeconds) {
     return `${seconds}s`;
 }
 
+function formatDateTime(value) {
+    if (value === null || value === undefined || value === '') return '-';
+    const timestamp = Number(value);
+    if (Number.isNaN(timestamp)) return escapeHtml(String(value));
+    const date = new Date(timestamp * 1000);
+    if (Number.isNaN(date.getTime())) return '-';
+    const pad = num => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function formatCodexUsagePercent(usedPercent) {
+    if (usedPercent === null || usedPercent === undefined || Number.isNaN(Number(usedPercent))) {
+        return '-';
+    }
+    return `${Math.max(0, Math.min(100, Number(usedPercent))).toFixed(1)}%`;
+}
+
+function getCodexUsageBadgeStyle(statusCode) {
+    if (Number(statusCode) === 200) {
+        return 'background: rgba(52, 199, 89, 0.14); color: #1e7e34; border: 1px solid rgba(52, 199, 89, 0.24);';
+    }
+    if (statusCode === null || statusCode === undefined || statusCode === '') {
+        return 'background: rgba(142, 142, 147, 0.12); color: var(--text-secondary); border: 1px solid rgba(142, 142, 147, 0.2);';
+    }
+    return 'background: rgba(255, 59, 48, 0.12); color: #d70015; border: 1px solid rgba(215, 0, 21, 0.22);';
+}
+
+function buildCodexUsageDetailsHtml(usageResult) {
+    if (!usageResult) {
+        return `
+            <div style="text-align: center; padding: 16px; color: var(--text-secondary, #86868b);">
+                暂无余额查询结果
+            </div>
+        `;
+    }
+
+    const statusCode = usageResult.status_code ?? '--';
+    const statusStyle = getCodexUsageBadgeStyle(usageResult.status_code);
+    const planType = usageResult.plan_type ?? '-';
+    const allowed = usageResult.allowed === null || usageResult.allowed === undefined ? '-' : String(usageResult.allowed);
+    const limitReached = usageResult.limit_reached === null || usageResult.limit_reached === undefined ? '-' : String(usageResult.limit_reached);
+    const usedPercent = formatCodexUsagePercent(usageResult.used_percent);
+    const resetText = usageResult.reset_text || '-';
+    const email = usageResult.email || '-';
+    const accountId = usageResult.account_id || '-';
+    const updatedAt = usageResult.updated_at ? formatDateTime(usageResult.updated_at) : '-';
+    const rawBody = usageResult.body_parsed
+        ? JSON.stringify(usageResult.body || {}, null, 2)
+        : (usageResult.body_text || '');
+
+    return `
+        <div class="quota-header">Codex 余额 / 状态</div>
+        <div class="quota-grid">
+            <div class="quota-model-item">
+                <div class="quota-model-name">状态码</div>
+                <div class="quota-meta" style="margin-top: 8px; justify-content: flex-start;">
+                    <span style="padding: 3px 10px; border-radius: 999px; font-weight: 700; ${statusStyle}">${escapeHtml(String(statusCode))}</span>
+                </div>
+            </div>
+            <div class="quota-model-item">
+                <div class="quota-model-name">已用比例</div>
+                <div style="margin-top: 8px; font-size: 18px; font-weight: 700; color: var(--text-primary);">${escapeHtml(usedPercent)}</div>
+                <div class="quota-meta" style="margin-top: 8px;"><span>重置时间</span><span>${escapeHtml(resetText)}</span></div>
+            </div>
+            <div class="quota-model-item">
+                <div class="quota-model-name">套餐 / 允许状态</div>
+                <div class="quota-meta" style="margin-top: 8px;"><span>plan_type</span><span>${escapeHtml(String(planType))}</span></div>
+                <div class="quota-meta" style="margin-top: 6px;"><span>allowed</span><span>${escapeHtml(allowed)}</span></div>
+                <div class="quota-meta" style="margin-top: 6px;"><span>limit_reached</span><span>${escapeHtml(limitReached)}</span></div>
+            </div>
+            <div class="quota-model-item">
+                <div class="quota-model-name">账户信息</div>
+                <div class="quota-meta" style="margin-top: 8px;"><span>email</span><span title="${escapeHtml(String(email))}">${escapeHtml(String(email))}</span></div>
+                <div class="quota-meta" style="margin-top: 6px;"><span>account_id</span><span title="${escapeHtml(String(accountId))}">${escapeHtml(String(accountId))}</span></div>
+                <div class="quota-meta" style="margin-top: 6px;"><span>更新时间</span><span>${escapeHtml(updatedAt)}</span></div>
+            </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 11px; color: var(--text-secondary);">仅 HTTP 200 视为成功，429 会保留在异常集合中。</div>
+        <div class="cred-content" style="margin-top: 10px;">${escapeHtml(rawBody)}</div>
+    `;
+}
+
+function toggleCodexUsageDetailsInline(pathId) {
+    const usageDetails = document.getElementById('usage-' + pathId);
+    if (!usageDetails) return;
+    const isShowing = usageDetails.style.display === 'block';
+    const contentDiv = usageDetails.querySelector('.cred-quota-content');
+    const filename = contentDiv ? contentDiv.getAttribute('data-filename') : '';
+
+    if (isShowing) {
+        usageDetails.style.display = 'none';
+        if (filename) AppState.codexCreds.openUsageDetails.delete(filename);
+        return;
+    }
+
+    const usageResult = filename ? AppState.codexCreds.usageResults[filename] : null;
+    if (contentDiv) {
+        contentDiv.innerHTML = buildCodexUsageDetailsHtml(usageResult);
+    }
+    usageDetails.style.display = 'block';
+    if (filename) AppState.codexCreds.openUsageDetails.add(filename);
+}
+
 // =====================================================================
 // 凭证卡片创建（通用）
 // =====================================================================
@@ -667,6 +1018,8 @@ function createCredCard(credInfo, manager) {
     const div = document.createElement('div');
     const { status, filename } = credInfo;
     const managerType = manager.type;
+    const usageResult = managerType === 'codex' ? (credInfo.usageResult || manager.usageResults[filename] || null) : null;
+    const hasUsageResult = Boolean(usageResult);
 
     // 卡片样式
     div.className = status.disabled ? 'cred-card disabled' : 'cred-card';
@@ -726,6 +1079,14 @@ function createCredCard(credInfo, manager) {
         statusBadges += '<span class="status-badge" style="background-color: #28a745; color: white;">无错误</span>';
     }
 
+    if (managerType === 'codex' && usageResult) {
+        const usageBadgeStyle = getCodexUsageBadgeStyle(usageResult.status_code);
+        statusBadges += `<span class="status-badge" style="${usageBadgeStyle}" title="最近一次余额查询状态">Usage ${escapeHtml(String(usageResult.status_code ?? '--'))}</span>`;
+        if (usageResult.used_percent !== null && usageResult.used_percent !== undefined && !Number.isNaN(Number(usageResult.used_percent))) {
+            statusBadges += `<span class="status-badge" style="background-color: rgba(0, 122, 255, 0.12); color: #0055cc; border: 1px solid rgba(0, 85, 204, 0.18);">已用 ${escapeHtml(formatCodexUsagePercent(usageResult.used_percent))}</span>`;
+        }
+    }
+
     // Preview状态显示 (仅对geminicli模式显示)
     if (managerType !== 'antigravity' && managerType !== 'codex' && credInfo.preview !== undefined) {
         if (credInfo.preview) {
@@ -778,6 +1139,8 @@ function createCredCard(credInfo, manager) {
         <button class="cred-btn" onclick="download${fnPrefix}Cred('${filename}')">下载</button>
         <button class="cred-btn" onclick="fetch${fnPrefix}UserEmail('${filename}')">邮箱</button>
         ${managerType === 'antigravity' ? `<button class="cred-btn quota" onclick="toggleAntigravityQuotaDetails('${pathId}')" title="查看该凭证的额度信息">额度</button>` : ''}
+        ${managerType === 'codex' ? `<button class="cred-btn quota" onclick="queryCodexUsage('${filename}')" title="查询该凭证的余额和状态">查询余额</button>` : ''}
+        ${managerType === 'codex' ? `<button class="cred-btn quota" onclick="toggleCodexUsageDetailsInline('${pathId}')" ${hasUsageResult ? '' : 'disabled'} title="查看最近一次余额查询结果">查看余额</button>` : ''}
         ${managerType === 'normal' ? `<button class="cred-btn preview" onclick="configurePreviewChannel('${filename}')" title="配置Preview通道，启用实验性功能">预览</button>` : ''}
         ${managerType !== 'codex' ? `<button class="cred-btn verify" onclick="verify${fnPrefix}ProjectId('${filename}')" title="重新获取Project ID，可恢复403错误">检验</button>` : ''}
         <button class="cred-btn test" onclick="test${fnPrefix}Credential('${filename}')" title="测试凭证是否可用">测试</button>
@@ -814,6 +1177,13 @@ function createCredCard(credInfo, manager) {
         ${managerType === 'antigravity' ? `
         <div class="cred-quota-details" id="quota-${pathId}" style="display: none;">
             <div class="cred-quota-content" data-filename="${filename}" data-loaded="false">
+            </div>
+        </div>
+        ` : ''}
+        ${managerType === 'codex' ? `
+        <div class="cred-quota-details" id="usage-${pathId}" style="display: ${manager.openUsageDetails.has(filename) ? 'block' : 'none'};">
+            <div class="cred-quota-content" data-filename="${filename}" data-loaded="${hasUsageResult ? 'true' : 'false'}">
+                ${manager.openUsageDetails.has(filename) ? buildCodexUsageDetailsHtml(usageResult) : ''}
             </div>
         </div>
         ` : ''}
@@ -1737,6 +2107,10 @@ function refreshCodexCredsList() { AppState.codexCreds.refresh(); }
 function applyCodexStatusFilter() { AppState.codexCreds.applyStatusFilter(); }
 function changeCodexPage(direction) { AppState.codexCreds.changePage(direction); }
 function changeCodexPageSize() { AppState.codexCreds.changePageSize(); }
+async function queryCodexUsage(filename) { return AppState.codexCreds.queryUsage(filename); }
+async function queryAllCodexBalances() { return AppState.codexCreds.runUsageScan('balance'); }
+async function batchQueryCodexUsageStatus() { return AppState.codexCreds.runUsageScan('status'); }
+async function deleteLatestFailedCodexCreds() { return AppState.codexCreds.deleteLatestFailedFiles(); }
 function toggleCodexFileSelection(filename) {
     if (AppState.codexCreds.selectedFiles.has(filename)) {
         AppState.codexCreds.selectedFiles.delete(filename);

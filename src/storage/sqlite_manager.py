@@ -25,6 +25,19 @@ class SQLiteManager:
         "user_email",
         "model_cooldowns",
         "preview",
+        "usage_status_code",
+        "usage_ok",
+        "usage_used_percent",
+        "usage_reset_text",
+        "usage_plan_type",
+        "usage_allowed",
+        "usage_limit_reached",
+        "usage_updated_at",
+        "usage_body",
+        "usage_body_text",
+        "usage_body_parsed",
+        "usage_account_id",
+        "usage_email",
     }
 
     # 所有必需的列定义（用于自动校验和修复）
@@ -61,6 +74,19 @@ class SQLiteManager:
             ("last_success", "REAL"),
             ("user_email", "TEXT"),
             ("model_cooldowns", "TEXT DEFAULT '{}'"),
+            ("usage_status_code", "INTEGER"),
+            ("usage_ok", "INTEGER"),
+            ("usage_used_percent", "REAL"),
+            ("usage_reset_text", "TEXT"),
+            ("usage_plan_type", "TEXT"),
+            ("usage_allowed", "INTEGER"),
+            ("usage_limit_reached", "INTEGER"),
+            ("usage_updated_at", "REAL"),
+            ("usage_body", "TEXT"),
+            ("usage_body_text", "TEXT"),
+            ("usage_body_parsed", "INTEGER"),
+            ("usage_account_id", "TEXT"),
+            ("usage_email", "TEXT"),
             ("rotation_order", "INTEGER DEFAULT 0"),
             ("call_count", "INTEGER DEFAULT 0"),
             ("created_at", "REAL DEFAULT (unixepoch())"),
@@ -255,6 +281,21 @@ class SQLiteManager:
 
                 -- 模型级 CD 支持 (JSON: {model_name: cooldown_timestamp})
                 model_cooldowns TEXT DEFAULT '{}',
+
+                -- Codex usage 快照
+                usage_status_code INTEGER,
+                usage_ok INTEGER,
+                usage_used_percent REAL,
+                usage_reset_text TEXT,
+                usage_plan_type TEXT,
+                usage_allowed INTEGER,
+                usage_limit_reached INTEGER,
+                usage_updated_at REAL,
+                usage_body TEXT,
+                usage_body_text TEXT,
+                usage_body_parsed INTEGER,
+                usage_account_id TEXT,
+                usage_email TEXT,
 
                 -- 轮换相关
                 rotation_order INTEGER DEFAULT 0,
@@ -696,7 +737,7 @@ class SQLiteManager:
 
             for key, value in state_updates.items():
                 if key in self.STATE_FIELDS:
-                    if key in ("error_codes", "error_messages", "model_cooldowns"):
+                    if key in ("error_codes", "error_messages", "model_cooldowns", "usage_body"):
                         # JSON 字段需要序列化
                         set_clauses.append(f"{key} = ?")
                         values.append(json.dumps(value))
@@ -779,6 +820,52 @@ class SQLiteManager:
                         "model_cooldowns": {},
                         "preview": True,
                     }
+                elif mode == "codex":
+                    async with db.execute(f"""
+                        SELECT disabled, error_codes, last_success, user_email, model_cooldowns,
+                               usage_status_code, usage_ok, usage_used_percent, usage_reset_text,
+                               usage_plan_type, usage_allowed, usage_limit_reached, usage_updated_at,
+                               usage_body, usage_body_text, usage_body_parsed, usage_account_id, usage_email
+                        FROM {table_name} WHERE filename = ?
+                    """, (filename,)) as cursor:
+                        row = await cursor.fetchone()
+
+                        if row:
+                            error_codes_json = row[1] or '[]'
+                            model_cooldowns_json = row[4] or '{}'
+                            usage_body_json = row[13] or 'null'
+                            try:
+                                usage_body = json.loads(usage_body_json)
+                            except Exception:
+                                usage_body = None
+                            return {
+                                "disabled": bool(row[0]),
+                                "error_codes": json.loads(error_codes_json),
+                                "last_success": row[2] or time.time(),
+                                "user_email": row[3],
+                                "model_cooldowns": json.loads(model_cooldowns_json),
+                                "usage_status_code": row[5],
+                                "usage_ok": bool(row[6]) if row[6] is not None else False,
+                                "usage_used_percent": row[7],
+                                "usage_reset_text": row[8] or '-',
+                                "usage_plan_type": row[9],
+                                "usage_allowed": row[10],
+                                "usage_limit_reached": row[11],
+                                "usage_updated_at": row[12],
+                                "usage_body": usage_body,
+                                "usage_body_text": row[14] or '',
+                                "usage_body_parsed": bool(row[15]) if row[15] is not None else False,
+                                "usage_account_id": row[16],
+                                "usage_email": row[17],
+                            }
+
+                    return {
+                        "disabled": False,
+                        "error_codes": [],
+                        "last_success": time.time(),
+                        "user_email": None,
+                        "model_cooldowns": {},
+                    }
                 else:
                     # antigravity 模式
                     async with db.execute(f"""
@@ -849,6 +936,59 @@ class SQLiteManager:
                                 "user_email": row[4],
                                 "model_cooldowns": model_cooldowns,
                                 "preview": bool(row[6]) if row[6] is not None else True,
+                            }
+
+                        return states
+                elif mode == "codex":
+                    async with db.execute(f"""
+                        SELECT filename, disabled, error_codes, last_success,
+                               user_email, model_cooldowns,
+                               usage_status_code, usage_ok, usage_used_percent, usage_reset_text,
+                               usage_plan_type, usage_allowed, usage_limit_reached, usage_updated_at,
+                               usage_body, usage_body_text, usage_body_parsed, usage_account_id, usage_email
+                        FROM {table_name}
+                    """) as cursor:
+                        rows = await cursor.fetchall()
+
+                        states = {}
+                        current_time = time.time()
+
+                        for row in rows:
+                            filename = row[0]
+                            error_codes_json = row[2] or '[]'
+                            model_cooldowns_json = row[5] or '{}'
+                            model_cooldowns = json.loads(model_cooldowns_json)
+                            usage_body_json = row[14] or 'null'
+                            try:
+                                usage_body = json.loads(usage_body_json)
+                            except Exception:
+                                usage_body = None
+
+                            if model_cooldowns:
+                                model_cooldowns = {
+                                    k: v for k, v in model_cooldowns.items()
+                                    if v > current_time
+                                }
+
+                            states[filename] = {
+                                "disabled": bool(row[1]),
+                                "error_codes": json.loads(error_codes_json),
+                                "last_success": row[3] or time.time(),
+                                "user_email": row[4],
+                                "model_cooldowns": model_cooldowns,
+                                "usage_status_code": row[6],
+                                "usage_ok": bool(row[7]) if row[7] is not None else False,
+                                "usage_used_percent": row[8],
+                                "usage_reset_text": row[9] or '-',
+                                "usage_plan_type": row[10],
+                                "usage_allowed": row[11],
+                                "usage_limit_reached": row[12],
+                                "usage_updated_at": row[13],
+                                "usage_body": usage_body,
+                                "usage_body_text": row[15] or '',
+                                "usage_body_parsed": bool(row[16]) if row[16] is not None else False,
+                                "usage_account_id": row[17],
+                                "usage_email": row[18],
                             }
 
                         return states
@@ -968,6 +1108,18 @@ class SQLiteManager:
                         {where_clause}
                         ORDER BY rotation_order
                     """
+                elif mode == "codex":
+                    all_query = f"""
+                        SELECT filename, disabled, error_codes, last_success,
+                               user_email, rotation_order, model_cooldowns,
+                               usage_body, usage_status_code, usage_ok, usage_used_percent,
+                               usage_reset_text, usage_plan_type, usage_allowed,
+                               usage_limit_reached, usage_updated_at, usage_body_text,
+                               usage_body_parsed, usage_account_id, usage_email
+                        FROM {table_name}
+                        {where_clause}
+                        ORDER BY rotation_order
+                    """
                 else:
                     all_query = f"""
                         SELECT filename, disabled, error_codes, last_success,
@@ -1023,6 +1175,28 @@ class SQLiteManager:
                             "rotation_order": row[5],
                             "model_cooldowns": active_cooldowns,
                         }
+
+                        if mode == "codex":
+                            usage_body_json = row[7] or 'null'
+                            try:
+                                usage_body = json.loads(usage_body_json)
+                            except Exception:
+                                usage_body = None
+                            summary["usage_result"] = {
+                                "status_code": row[8],
+                                "ok": bool(row[9]) if row[8] is not None and row[9] is not None else False,
+                                "used_percent": row[10],
+                                "reset_text": row[11] or '-',
+                                "plan_type": row[12],
+                                "allowed": row[13],
+                                "limit_reached": row[14],
+                                "updated_at": row[15],
+                                "body": usage_body,
+                                "body_text": row[16] or '',
+                                "body_parsed": bool(row[17]) if row[17] is not None else False,
+                                "account_id": row[18],
+                                "email": row[19],
+                            } if row[8] is not None or row[15] is not None else None
 
                         # preview状态只对geminicli模式有效
                         if mode == "geminicli":

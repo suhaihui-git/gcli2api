@@ -852,6 +852,45 @@
         .batch-btn.batch-disable { background: #86868b; }
         .batch-btn.batch-delete { background: var(--danger); }
         .batch-btn.batch-email { background: var(--accent); }
+        .batch-btn.batch-balance { background: #007aff; }
+        .batch-btn.batch-status { background: #5856d6; }
+
+        .usage-summary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--divider);
+        }
+
+        .usage-summary-item {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .usage-summary-item strong {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .usage-summary-text {
+            width: 100%;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .cred-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .cred-btn:disabled:hover {
+            background: rgba(142, 142, 147, 0.06);
+            border-color: var(--divider);
+            color: var(--text-secondary);
+        }
 
         /* ====== Filter ====== */
         .filter-container {
@@ -2312,6 +2351,7 @@
                             <select id="errorCodeFilter" class="filter-select" onchange="applyStatusFilter()">
                                 <option value="all">全部</option>
                                 <option value="400">400</option>
+                                <option value="401">401</option>
                                 <option value="403">403</option>
                                 <option value="429">429</option>
                                 <option value="500">500</option>
@@ -2460,6 +2500,7 @@
                                 onchange="applyAntigravityStatusFilter()">
                                 <option value="all">全部</option>
                                 <option value="400">400</option>
+                                <option value="401">401</option>
                                 <option value="403">403</option>
                                 <option value="429">429</option>
                                 <option value="500">500</option>
@@ -2584,6 +2625,25 @@
                         </div>
                     </div>
 
+                    <div class="batch-controls">
+                        <div class="batch-actions">
+                            <button class="batch-btn batch-balance" id="codexQueryAllBalanceBtn"
+                                onclick="queryAllCodexBalances()">一键查询余额</button>
+                            <button class="batch-btn batch-status" id="codexBatchStatusBtn"
+                                onclick="batchQueryCodexUsageStatus()">批量查询状态</button>
+                            <button class="batch-btn batch-delete" id="codexDeleteFailedBtn"
+                                onclick="deleteLatestFailedCodexCreds()" disabled>一键删除异常</button>
+                        </div>
+                        <div class="usage-summary">
+                            <div class="usage-summary-item">已处理 <strong id="codexUsageProcessed">0/0</strong></div>
+                            <div class="usage-summary-item">成功 <strong id="codexUsageSuccess">0</strong></div>
+                            <div class="usage-summary-item">失败 <strong id="codexUsageFailed">0</strong></div>
+                            <div class="usage-summary-item">失败集合 <strong id="codexUsageFailedSet">0</strong></div>
+                            <div class="usage-summary-item">当前并发 <strong id="codexUsageConcurrency">0</strong></div>
+                            <div class="usage-summary-text" id="codexUsageSummaryText">未执行查询</div>
+                        </div>
+                    </div>
+
                     <div class="filter-container">
                         <div class="filter-group">
                             <label for="codexStatusFilter">凭证状态</label>
@@ -2601,6 +2661,7 @@
                                 onchange="applyCodexStatusFilter()">
                                 <option value="all">全部</option>
                                 <option value="400">400</option>
+                                <option value="401">401</option>
                                 <option value="403">403</option>
                                 <option value="429">429</option>
                                 <option value="500">500</option>

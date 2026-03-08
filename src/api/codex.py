@@ -33,6 +33,86 @@ _SAFE_TO_STRIP_PARAMS = {
     "tools", "tool_choice", "prompt_cache_key",
 }
 
+# Codex 上游已知不支持或不稳定的字段，发送前统一清理
+_PRE_STRIP_PARAMS = {
+    "previous_response_id",
+    "prompt_cache_retention",
+    "safety_identifier",
+    "context_management",
+    "max_output_tokens",
+    "max_completion_tokens",
+    "temperature",
+    "top_p",
+    "truncation",
+    "user",
+}
+
+# 仅在显式要求紧凑非流式时走 /responses/compact
+_NON_STREAM_COMPACT_HINTS = {
+    "response_format",
+    "text",
+}
+
+
+def _prune_dependent_fields(body: Dict[str, Any]) -> None:
+    """按字段依赖关系清理请求体。"""
+    if not body.get("tools"):
+        body.pop("tools", None)
+        body.pop("parallel_tool_calls", None)
+        body.pop("tool_choice", None)
+
+    reasoning = body.get("reasoning")
+    if not isinstance(reasoning, dict) or not reasoning:
+        body.pop("reasoning", None)
+        body.pop("include", None)
+
+    if body.get("service_tier") != "priority":
+        body.pop("service_tier", None)
+
+    body.pop("_prefer_compact", None)
+
+
+def _sanitize_codex_body(body: Dict[str, Any]) -> None:
+    """统一清理 Codex 请求体中的不兼容字段。"""
+    body.setdefault("instructions", "")
+    for field in _PRE_STRIP_PARAMS:
+        body.pop(field, None)
+    _prune_dependent_fields(body)
+
+
+def _strip_body_param(body: Dict[str, Any], bad_param: str) -> bool:
+    """剥离被上游拒绝的参数，支持嵌套字段。"""
+    removed = False
+
+    if "." not in bad_param:
+        removed = bad_param in body
+        body.pop(bad_param, None)
+    else:
+        parts = bad_param.split(".")
+        target: Any = body
+        for part in parts[:-1]:
+            if not isinstance(target, dict) or part not in target:
+                target = None
+                break
+            target = target.get(part)
+        if isinstance(target, dict) and parts[-1] in target:
+            target.pop(parts[-1], None)
+            removed = True
+
+    reasoning = body.get("reasoning")
+    if isinstance(reasoning, dict) and not reasoning:
+        body.pop("reasoning", None)
+
+    _prune_dependent_fields(body)
+    return removed
+
+
+def _should_use_compact_endpoint_for_non_stream(body: Dict[str, Any]) -> bool:
+    """仅对明确的简单/紧凑请求使用 /responses/compact。"""
+    if body.get("_prefer_compact"):
+        return True
+    return any(field in body for field in _NON_STREAM_COMPACT_HINTS)
+
 
 def _parse_unknown_parameter(error_str: str) -> Optional[str]:
     """
@@ -196,17 +276,7 @@ async def stream_request(
 
             # 确保 stream=true 并清理不支持的字段
             body["stream"] = True
-            body.setdefault("instructions", "")
-            body.pop("previous_response_id", None)
-            body.pop("prompt_cache_retention", None)
-            body.pop("safety_identifier", None)
-            body.pop("context_management", None)
-            # parallel_tool_calls 仅在有 tools 时才保留
-            if not body.get("tools"):
-                body.pop("parallel_tool_calls", None)
-            # include 仅在有 reasoning 时才保留
-            if not body.get("reasoning"):
-                body.pop("include", None)
+            _sanitize_codex_body(body)
 
             _apply_prompt_cache_identity(body, request_headers)
 
@@ -234,11 +304,10 @@ async def stream_request(
                         # 400 unknown_parameter: 自动剥离问题参数并重试
                         if r.status_code == 400:
                             bad_param = _parse_unknown_parameter(error_str)
-                            if bad_param and bad_param in body:
+                            if bad_param and _strip_body_param(body, bad_param):
                                 log.info(
                                     f"[CODEX] 自动剥离不支持的参数 '{bad_param}' 并重试"
                                 )
-                                body.pop(bad_param, None)
                                 continue  # 重试（不消耗常规重试次数）
 
                         # 处理 429 速率限制
@@ -330,6 +399,54 @@ async def non_stream_request(
     retry_interval = retry_config["retry_interval"]
 
     model_name = body.get("model", "")
+    use_compact_endpoint = _should_use_compact_endpoint_for_non_stream(body)
+
+    if not use_compact_endpoint:
+        completed_line = None
+        stream_gen = stream_request(body=body, native=False, headers=headers)
+
+        async for chunk in stream_gen:
+            if isinstance(chunk, Response):
+                return chunk
+
+            chunk_str = chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+            if not chunk_str or not chunk_str.strip():
+                continue
+            if not chunk_str.startswith("data: "):
+                continue
+
+            payload = chunk_str[6:].strip()
+            if payload == "[DONE]":
+                break
+
+            try:
+                event = json.loads(payload)
+            except Exception:
+                continue
+
+            if event.get("type") == "response.completed":
+                completed_line = payload.encode("utf-8")
+                break
+
+        if completed_line is None:
+            return Response(
+                content=json.dumps({
+                    "error": {
+                        "message": "Codex stream ended before response.completed",
+                        "type": "server_error",
+                        "code": "stream_incomplete",
+                    }
+                }),
+                status_code=502,
+                media_type="application/json",
+            )
+
+        return Response(
+            content=completed_line,
+            status_code=200,
+            media_type="application/json",
+        )
+
     codex_api_url = await get_codex_api_url()
     target_url = f"{codex_api_url.rstrip('/')}/responses/compact"
 
@@ -369,26 +486,16 @@ async def non_stream_request(
             if headers:
                 request_headers.update(headers)
 
-            # compact 端点: 删除不支持的字段
+            _sanitize_codex_body(body)
             body.pop("stream", None)
             body.pop("store", None)
-            body.setdefault("instructions", "")
-            body.pop("previous_response_id", None)
-            body.pop("prompt_cache_retention", None)
-            body.pop("safety_identifier", None)
-            body.pop("context_management", None)
-            # parallel_tool_calls 仅在有 tools 时才保留
-            if not body.get("tools"):
-                body.pop("parallel_tool_calls", None)
-            # include 仅在有 reasoning 时才保留
-            if not body.get("reasoning"):
-                body.pop("include", None)
 
             _apply_prompt_cache_identity(body, request_headers)
 
             log.info(
-                f"[CODEX] 非流式请求: model={model_name}, "
+                f"[CODEX] 非流式 compact 请求: model={model_name}, "
                 f"credential={credential_name}, "
+                f"url={target_url}, "
                 f"attempt={attempt + 1}/{max_retries + 1}"
             )
 
@@ -405,11 +512,10 @@ async def non_stream_request(
                     # 400 unknown_parameter: 自动剥离问题参数并重试
                     if r.status_code == 400:
                         bad_param = _parse_unknown_parameter(error_text)
-                        if bad_param and bad_param in body:
+                        if bad_param and _strip_body_param(body, bad_param):
                             log.info(
                                 f"[CODEX] 自动剥离不支持的参数 '{bad_param}' 并重试"
                             )
-                            body.pop(bad_param, None)
                             continue
 
                     cooldown_until = None

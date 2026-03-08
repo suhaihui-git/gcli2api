@@ -5,12 +5,13 @@
 import asyncio
 import io
 import json
+import math
 import os
 import time
 import zipfile
-from typing import List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Response
 from fastapi.responses import JSONResponse
 
 from log import log
@@ -22,13 +23,17 @@ from src.models import (
 from src.storage_adapter import get_storage_adapter
 from src.utils import verify_panel_token, GEMINICLI_USER_AGENT, ANTIGRAVITY_USER_AGENT
 from src.api.antigravity import fetch_quota_info
+from src.api.codex import build_codex_headers, _extract_codex_creds
 from src.google_oauth_api import Credentials, fetch_project_id
+from src.httpx_client import get_async
 from config import get_code_assist_endpoint, get_antigravity_api_url
 from .utils import validate_mode
 
 
 # 创建路由器
 router = APIRouter(prefix="/creds", tags=["credentials"])
+
+CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
 
 
 # =============================================================================
@@ -86,6 +91,267 @@ async def extract_json_files_from_zip(zip_file: UploadFile) -> List[dict]:
     except Exception as e:
         log.error(f"处理ZIP文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"处理ZIP文件失败: {str(e)}")
+
+
+def _format_codex_usage_reset_text(primary_window: Optional[Dict[str, Any]]) -> str:
+    """格式化 Codex usage 重置时间文本，优先 reset_at，回退 reset_after_seconds"""
+    if not primary_window or not isinstance(primary_window, dict):
+        return "-"
+
+    reset_at = primary_window.get("reset_at")
+    if reset_at not in [None, ""]:
+        try:
+            timestamp = float(reset_at)
+            if math.isfinite(timestamp):
+                return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+        except (TypeError, ValueError, OSError):
+            pass
+
+    reset_after_seconds = primary_window.get("reset_after_seconds")
+    if reset_after_seconds not in [None, ""]:
+        try:
+            seconds = int(float(reset_after_seconds))
+            if seconds < 0:
+                return str(reset_after_seconds)
+            days, remainder = divmod(seconds, 86400)
+            hours, remainder = divmod(remainder, 3600)
+            minutes, secs = divmod(remainder, 60)
+            parts = []
+            if days:
+                parts.append(f"{days}天")
+            if hours:
+                parts.append(f"{hours}小时")
+            if minutes:
+                parts.append(f"{minutes}分")
+            if secs or not parts:
+                parts.append(f"{secs}秒")
+            return f"{seconds}s ({''.join(parts)}后)"
+        except (TypeError, ValueError):
+            return str(reset_after_seconds)
+
+    return "-"
+
+
+def _build_codex_usage_snapshot_state(result: Dict[str, Any]) -> Dict[str, Any]:
+    body = result.get("body")
+    body_parsed = bool(result.get("body_parsed"))
+    if body_parsed and body is not None:
+        try:
+            body_text = json.dumps(body, ensure_ascii=False)
+        except Exception:
+            body_text = result.get("body_text") or ""
+    else:
+        body_text = result.get("body_text") or ""
+
+    usage_updated_at = result.get("updated_at")
+    if usage_updated_at in [None, ""]:
+        usage_updated_at = time.time()
+
+    return {
+        "usage_status_code": result.get("status_code"),
+        "usage_ok": bool(result.get("ok")),
+        "usage_used_percent": result.get("used_percent"),
+        "usage_reset_text": result.get("reset_text") or "-",
+        "usage_plan_type": result.get("plan_type"),
+        "usage_allowed": result.get("allowed"),
+        "usage_limit_reached": result.get("limit_reached"),
+        "usage_updated_at": usage_updated_at,
+        "usage_body": body if body_parsed else None,
+        "usage_body_text": body_text,
+        "usage_body_parsed": body_parsed,
+        "usage_account_id": result.get("account_id"),
+        "usage_email": result.get("email"),
+    }
+
+
+def _extract_codex_usage_snapshot(state: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not state:
+        return None
+
+    status_code = state.get("usage_status_code")
+    usage_updated_at = state.get("usage_updated_at")
+    if status_code is None and usage_updated_at in [None, ""]:
+        return None
+
+    return {
+        "status_code": status_code,
+        "ok": bool(state.get("usage_ok")) if status_code is not None else False,
+        "used_percent": state.get("usage_used_percent"),
+        "reset_text": state.get("usage_reset_text") or "-",
+        "plan_type": state.get("usage_plan_type"),
+        "allowed": state.get("usage_allowed"),
+        "limit_reached": state.get("usage_limit_reached"),
+        "updated_at": usage_updated_at,
+        "body": state.get("usage_body"),
+        "body_text": state.get("usage_body_text") or "",
+        "body_parsed": bool(state.get("usage_body_parsed")),
+        "account_id": state.get("usage_account_id"),
+        "email": state.get("usage_email"),
+    }
+
+
+async def _persist_codex_usage_snapshot(filename: str, result: Dict[str, Any], storage_adapter) -> None:
+    try:
+        await storage_adapter.update_credential_state(
+            filename,
+            _build_codex_usage_snapshot_state(result),
+            mode="codex",
+        )
+    except Exception as e:
+        log.error(f"持久化Codex usage快照失败 {filename}: {e}")
+
+
+async def _query_codex_usage(filename: str, credential_data: dict, storage_adapter) -> Dict[str, Any]:
+    """查询单个 Codex 凭证的 usage 信息，语义对齐 script/clean.js"""
+    credential_data = await _ensure_codex_token(filename, credential_data, storage_adapter)
+
+    access_token, account_id, is_oauth = _extract_codex_creds(credential_data)
+    if not access_token:
+        raise HTTPException(status_code=400, detail="凭证中没有访问令牌")
+
+    headers = build_codex_headers(
+        access_token=access_token,
+        account_id=account_id,
+        is_stream=False,
+        is_oauth=is_oauth,
+    )
+
+    response = await get_async(
+        CODEX_USAGE_URL,
+        headers=headers,
+        timeout=30.0,
+    )
+
+    status_code = response.status_code
+    response_text = response.text if hasattr(response, "text") else ""
+    response_json = None
+    try:
+        response_json = response.json()
+    except Exception:
+        response_json = None
+
+    rate_limit = response_json.get("rate_limit") if isinstance(response_json, dict) else {}
+    primary_window = rate_limit.get("primary_window") if isinstance(rate_limit, dict) else {}
+
+    used_percent = primary_window.get("used_percent") if isinstance(primary_window, dict) else None
+    try:
+        used_percent = float(used_percent) if used_percent is not None else None
+    except (TypeError, ValueError):
+        used_percent = None
+
+    result = {
+        "filename": os.path.basename(filename),
+        "status_code": status_code,
+        "ok": status_code == 200,
+        "used_percent": used_percent,
+        "reset_text": _format_codex_usage_reset_text(primary_window),
+        "plan_type": response_json.get("plan_type") if isinstance(response_json, dict) else None,
+        "allowed": rate_limit.get("allowed") if isinstance(rate_limit, dict) else None,
+        "limit_reached": rate_limit.get("limit_reached") if isinstance(rate_limit, dict) else None,
+        "body": response_json,
+        "body_text": response_text,
+        "body_parsed": isinstance(response_json, dict),
+        "account_id": response_json.get("account_id") if isinstance(response_json, dict) else None,
+        "email": response_json.get("email") if isinstance(response_json, dict) else None,
+        "updated_at": time.time(),
+    }
+
+    return result
+
+
+async def _query_codex_usage_for_file(filename: str, storage_adapter) -> Dict[str, Any]:
+    if not filename.endswith(".json"):
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    credential_data = await storage_adapter.get_credential(filename, mode="codex")
+    if not credential_data:
+        raise HTTPException(status_code=404, detail="凭证不存在")
+
+    result = await _query_codex_usage(filename, credential_data, storage_adapter)
+    await _persist_codex_usage_snapshot(filename, result, storage_adapter)
+    return result
+
+
+async def _query_codex_usage_safe(filename: str, storage_adapter) -> Dict[str, Any]:
+    try:
+        return await _query_codex_usage_for_file(filename, storage_adapter)
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else json.dumps(e.detail, ensure_ascii=False)
+        return {
+            "filename": os.path.basename(filename),
+            "status_code": e.status_code,
+            "ok": False,
+            "used_percent": None,
+            "reset_text": "-",
+            "plan_type": None,
+            "allowed": None,
+            "limit_reached": None,
+            "body": None,
+            "body_text": detail,
+            "body_parsed": False,
+            "account_id": None,
+            "email": None,
+            "updated_at": time.time(),
+        }
+    except Exception as e:
+        log.error(f"查询Codex usage失败 {filename}: {e}")
+        return {
+            "filename": os.path.basename(filename),
+            "status_code": None,
+            "ok": False,
+            "used_percent": None,
+            "reset_text": "-",
+            "plan_type": None,
+            "allowed": None,
+            "limit_reached": None,
+            "body": None,
+            "body_text": str(e),
+            "body_parsed": False,
+            "account_id": None,
+            "email": None,
+            "updated_at": time.time(),
+        }
+
+
+async def _batch_query_codex_usage(storage_adapter, filenames: Optional[List[str]] = None) -> Dict[str, Any]:
+    if filenames is None:
+        filenames = await storage_adapter.list_credentials(mode="codex")
+
+    normalized_filenames = []
+    for filename in filenames:
+        base_name = os.path.basename(filename)
+        if base_name.endswith(".json"):
+            normalized_filenames.append(base_name)
+
+    results = []
+    failed_filenames = []
+    processed = 0
+
+    for start in range(0, len(normalized_filenames), 6):
+        chunk = normalized_filenames[start:start + 6]
+        chunk_results = await asyncio.gather(*[
+            _query_codex_usage_safe(filename, storage_adapter) for filename in chunk
+        ])
+        results.extend(chunk_results)
+        processed += len(chunk_results)
+        failed_filenames.extend([
+            item["filename"] for item in chunk_results if not item.get("ok")
+        ])
+
+    success_count = sum(1 for item in results if item.get("ok"))
+    failed_count = len(results) - success_count
+
+    return {
+        "success": True,
+        "results": results,
+        "processed": processed,
+        "total": len(normalized_filenames),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "failed_filenames": failed_filenames,
+        "concurrency_limit": 6,
+        "message": f"Codex usage 扫描完成：成功 {success_count}，失败 {failed_count}",
+    }
 
 
 async def upload_credentials_common(
@@ -263,6 +529,7 @@ async def get_creds_status_common(
             "last_success": summary["last_success"],
             "backend_type": backend_type,
             "model_cooldowns": summary.get("model_cooldowns", {}),
+            "usage_result": summary.get("usage_result"),
         }
 
         # 只对 geminicli 模式添加 preview 字段
@@ -1476,6 +1743,58 @@ async def _chat_codex_credential(filename: str, credential_data: dict, storage_a
             status_code=status_code,
             content={"success": False, "error": response.text},
         )
+
+
+@router.get("/codex-usage/{filename}")
+async def get_codex_credential_usage(
+    filename: str,
+    _token: str = Depends(verify_panel_token),
+    mode: str = "codex"
+):
+    """查询单个 Codex 凭证的 usage / balance 状态"""
+    try:
+        mode = validate_mode(mode)
+        if mode != "codex":
+            raise HTTPException(status_code=400, detail="该接口仅支持 codex 模式")
+
+        storage_adapter = await get_storage_adapter()
+        result = await _query_codex_usage_for_file(filename, storage_adapter)
+        status_code = result.get("status_code") or 200
+        return JSONResponse(status_code=status_code, content=result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"查询Codex usage失败 {filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.post("/codex-usage/batch")
+async def batch_query_codex_usage(
+    _token: str = Depends(verify_panel_token),
+    mode: str = "codex",
+    all_pages: bool = Query(True),
+    body: dict = None,
+):
+    """批量查询 Codex 凭证 usage / balance 状态"""
+    try:
+        mode = validate_mode(mode)
+        if mode != "codex":
+            raise HTTPException(status_code=400, detail="该接口仅支持 codex 模式")
+
+        storage_adapter = await get_storage_adapter()
+        filenames = None
+        if not all_pages and body and isinstance(body, dict):
+            raw_filenames = body.get("filenames") or []
+            if isinstance(raw_filenames, list):
+                filenames = [os.path.basename(name) for name in raw_filenames if isinstance(name, str)]
+
+        result = await _batch_query_codex_usage(storage_adapter, filenames=filenames)
+        return JSONResponse(content=result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"批量查询Codex usage失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量查询失败: {str(e)}")
 
 
 @router.post("/test/{filename}")

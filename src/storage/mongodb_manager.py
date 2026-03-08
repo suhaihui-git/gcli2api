@@ -24,6 +24,19 @@ class MongoDBManager:
         "user_email",
         "model_cooldowns",
         "preview",
+        "usage_status_code",
+        "usage_ok",
+        "usage_used_percent",
+        "usage_reset_text",
+        "usage_plan_type",
+        "usage_allowed",
+        "usage_limit_reached",
+        "usage_updated_at",
+        "usage_body",
+        "usage_body_text",
+        "usage_body_parsed",
+        "usage_account_id",
+        "usage_email",
     }
 
     @staticmethod
@@ -849,6 +862,22 @@ class MongoDBManager:
                     "user_email": doc.get("user_email"),
                     "model_cooldowns": model_cooldowns,
                 }
+                if mode == "codex":
+                    state.update({
+                        "usage_status_code": doc.get("usage_status_code"),
+                        "usage_ok": doc.get("usage_ok", False),
+                        "usage_used_percent": doc.get("usage_used_percent"),
+                        "usage_reset_text": doc.get("usage_reset_text") or '-',
+                        "usage_plan_type": doc.get("usage_plan_type"),
+                        "usage_allowed": doc.get("usage_allowed"),
+                        "usage_limit_reached": doc.get("usage_limit_reached"),
+                        "usage_updated_at": doc.get("usage_updated_at"),
+                        "usage_body": doc.get("usage_body"),
+                        "usage_body_text": doc.get("usage_body_text") or '',
+                        "usage_body_parsed": doc.get("usage_body_parsed", False),
+                        "usage_account_id": doc.get("usage_account_id"),
+                        "usage_email": doc.get("usage_email"),
+                    })
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     state["preview"] = doc.get("preview", True)
@@ -889,6 +918,22 @@ class MongoDBManager:
                 "model_cooldowns": 1,
                 "_id": 0
             }
+            if mode == "codex":
+                projection.update({
+                    "usage_status_code": 1,
+                    "usage_ok": 1,
+                    "usage_used_percent": 1,
+                    "usage_reset_text": 1,
+                    "usage_plan_type": 1,
+                    "usage_allowed": 1,
+                    "usage_limit_reached": 1,
+                    "usage_updated_at": 1,
+                    "usage_body": 1,
+                    "usage_body_text": 1,
+                    "usage_body_parsed": 1,
+                    "usage_account_id": 1,
+                    "usage_email": 1,
+                })
             # preview状态只对geminicli模式有效
             if mode == "geminicli":
                 projection["preview"] = 1
@@ -916,6 +961,22 @@ class MongoDBManager:
                     "user_email": doc.get("user_email"),
                     "model_cooldowns": model_cooldowns,
                 }
+                if mode == "codex":
+                    state.update({
+                        "usage_status_code": doc.get("usage_status_code"),
+                        "usage_ok": doc.get("usage_ok", False),
+                        "usage_used_percent": doc.get("usage_used_percent"),
+                        "usage_reset_text": doc.get("usage_reset_text") or '-',
+                        "usage_plan_type": doc.get("usage_plan_type"),
+                        "usage_allowed": doc.get("usage_allowed"),
+                        "usage_limit_reached": doc.get("usage_limit_reached"),
+                        "usage_updated_at": doc.get("usage_updated_at"),
+                        "usage_body": doc.get("usage_body"),
+                        "usage_body_text": doc.get("usage_body_text") or '',
+                        "usage_body_parsed": doc.get("usage_body_parsed", False),
+                        "usage_account_id": doc.get("usage_account_id"),
+                        "usage_email": doc.get("usage_email"),
+                    })
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     state["preview"] = doc.get("preview", True)
@@ -1007,6 +1068,22 @@ class MongoDBManager:
                 "model_cooldowns": 1,
                 "_id": 0
             }
+            if mode == "codex":
+                projection.update({
+                    "usage_status_code": 1,
+                    "usage_ok": 1,
+                    "usage_used_percent": 1,
+                    "usage_reset_text": 1,
+                    "usage_plan_type": 1,
+                    "usage_allowed": 1,
+                    "usage_limit_reached": 1,
+                    "usage_updated_at": 1,
+                    "usage_body": 1,
+                    "usage_body_text": 1,
+                    "usage_body_parsed": 1,
+                    "usage_account_id": 1,
+                    "usage_email": 1,
+                })
             # preview状态只对geminicli模式有效
             if mode == "geminicli":
                 projection["preview"] = 1
@@ -1036,6 +1113,22 @@ class MongoDBManager:
                     "rotation_order": doc.get("rotation_order", 0),
                     "model_cooldowns": active_cooldowns,
                 }
+                if mode == "codex":
+                    summary["usage_result"] = {
+                        "status_code": doc.get("usage_status_code"),
+                        "ok": doc.get("usage_ok", False),
+                        "used_percent": doc.get("usage_used_percent"),
+                        "reset_text": doc.get("usage_reset_text") or '-',
+                        "plan_type": doc.get("usage_plan_type"),
+                        "allowed": doc.get("usage_allowed"),
+                        "limit_reached": doc.get("usage_limit_reached"),
+                        "updated_at": doc.get("usage_updated_at"),
+                        "body": doc.get("usage_body"),
+                        "body_text": doc.get("usage_body_text") or '',
+                        "body_parsed": doc.get("usage_body_parsed", False),
+                        "account_id": doc.get("usage_account_id"),
+                        "email": doc.get("usage_email"),
+                    } if doc.get("usage_status_code") is not None or doc.get("usage_updated_at") is not None else None
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     summary["preview"] = doc.get("preview", True)

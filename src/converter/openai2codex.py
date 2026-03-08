@@ -117,9 +117,9 @@ def convert_openai_to_codex_request(
         }
         codex_request["include"] = ["reasoning.encrypted_content"]
 
-    # 转换 tool_choice
+    # 转换 tool_choice（仅在存在 tools 时发送）
     tool_choice = openai_request.get("tool_choice")
-    if tool_choice is not None:
+    if tool_choice is not None and codex_request.get("tools"):
         if isinstance(tool_choice, str):
             codex_request["tool_choice"] = tool_choice
         elif isinstance(tool_choice, dict):
