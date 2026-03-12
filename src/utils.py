@@ -42,6 +42,8 @@ CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_AUTH_URL = "https://auth.openai.com/oauth/authorize"
 CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_SCOPES = "openid email profile offline_access"
+CODEX_REDIRECT_URI = "http://localhost:1455/auth/callback"
+CODEX_CALLBACK_PORT = 1455
 
 # 统一的 Token URL（两种模式相同）
 TOKEN_URL = "https://oauth2.googleapis.com/token"

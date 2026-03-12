@@ -41,6 +41,8 @@ from .utils import (
     CODEX_AUTH_URL,
     CODEX_TOKEN_URL,
     CODEX_SCOPES,
+    CODEX_REDIRECT_URI,
+    CODEX_CALLBACK_PORT,
     SCOPES,
     GEMINICLI_USER_AGENT,
     TOKEN_URL,
@@ -68,12 +70,12 @@ def _generate_pkce_codes() -> Dict[str, str]:
     return {"code_verifier": code_verifier, "code_challenge": code_challenge}
 
 
-def _build_codex_auth_url(redirect_uri: str, state: str, code_challenge: str) -> str:
-    """构建Codex (OpenAI) OAuth认证URL"""
+def _build_codex_auth_url(state: str, code_challenge: str) -> str:
+    """构建Codex (OpenAI) OAuth认证URL，使用固定的redirect_uri"""
     params = {
         "client_id": CODEX_CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": redirect_uri,
+        "redirect_uri": CODEX_REDIRECT_URI,
         "scope": CODEX_SCOPES,
         "state": state,
         "code_challenge": code_challenge,
@@ -87,7 +89,7 @@ def _build_codex_auth_url(redirect_uri: str, state: str, code_challenge: str) ->
 
 async def _exchange_codex_code(code: str, redirect_uri: str, code_verifier: str) -> Dict[str, Any]:
     """使用授权码和PKCE verifier向OpenAI交换token"""
-    import aiohttp
+    from src.httpx_client import post_async
 
     data = {
         "grant_type": "authorization_code",
@@ -97,19 +99,18 @@ async def _exchange_codex_code(code: str, redirect_uri: str, code_verifier: str)
         "code_verifier": code_verifier,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            CODEX_TOKEN_URL,
-            data=data,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
-            },
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                raise Exception(f"Codex token交换失败 (HTTP {resp.status}): {error_text}")
-            return await resp.json()
+    response = await post_async(
+        CODEX_TOKEN_URL,
+        data=data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+        },
+        timeout=30.0,
+    )
+    if response.status_code != 200:
+        raise Exception(f"Codex token交换失败 (HTTP {response.status_code}): {response.text}")
+    return response.json()
 
 
 def _parse_codex_id_token(id_token: str) -> Dict[str, Any]:
@@ -144,8 +145,8 @@ def _generate_codex_filename(email: str, plan_type: str, account_id: str) -> str
     """生成Codex凭证文件名"""
     plan_type = plan_type.lower().strip() if plan_type else ""
     if plan_type == "team" and account_id:
-        # team用户使用account_id哈希作为前缀
-        hash_id = hashlib.md5(account_id.encode()).hexdigest()[:8]
+        # team用户使用account_id的SHA256哈希前8位作为前缀（与CLIProxyAPI一致）
+        hash_id = hashlib.sha256(account_id.encode()).hexdigest()[:8]
         return f"codex-{hash_id}-{email}-team.json"
     elif plan_type:
         return f"codex-{email}-{plan_type}.json"
@@ -176,14 +177,13 @@ async def _complete_codex_auth(flow_data: Dict[str, Any], auth_code: str, state:
     """完成Codex OAuth认证流程"""
     try:
         code_verifier = flow_data.get("pkce_verifier")
-        redirect_uri = flow_data.get("callback_url")
 
         if not code_verifier:
             return {"success": False, "error": "缺少PKCE code_verifier"}
 
-        # 交换token
+        # 交换token（始终使用固定的redirect_uri）
         log.info("开始Codex token交换...")
-        token_response = await _exchange_codex_code(auth_code, redirect_uri, code_verifier)
+        token_response = await _exchange_codex_code(auth_code, CODEX_REDIRECT_URI, code_verifier)
         log.info("Codex token交换成功")
 
         # 解析id_token
@@ -437,10 +437,10 @@ async def create_auth_url(
 ) -> Dict[str, Any]:
     """创建认证URL，支持动态端口分配"""
     try:
-        # Codex模式使用专用端口和路径（匹配OpenAI注册的redirect_uri）
+        # Codex模式必须使用固定端口1455（匹配OpenAI注册的redirect_uri）
         if mode == "codex":
-            callback_port = await find_available_port(start_port=1455)
-            callback_url = f"http://{CALLBACK_HOST}:{callback_port}/auth/callback"
+            callback_port = CODEX_CALLBACK_PORT
+            callback_url = CODEX_REDIRECT_URI
         else:
             # 动态分配端口
             callback_port = await find_available_port()
@@ -459,6 +459,12 @@ async def create_auth_url(
             log.info(f"OAuth回调服务器已启动，端口: {callback_port}")
         except Exception as e:
             log.error(f"启动回调服务器失败: {e}")
+            if mode == "codex":
+                return {
+                    "success": False,
+                    "error": f"无法启动Codex OAuth回调服务器，端口1455被占用。"
+                    f"OpenAI要求redirect_uri必须为 {CODEX_REDIRECT_URI}，请释放端口1455后重试。",
+                }
             return {
                 "success": False,
                 "error": f"无法启动OAuth回调服务器，端口{callback_port}: {str(e)}",
@@ -476,8 +482,8 @@ async def create_auth_url(
             else:
                 state = str(uuid.uuid4())
 
-            # 构建OpenAI认证URL
-            auth_url = _build_codex_auth_url(callback_url, state, pkce_codes["code_challenge"])
+            # 构建OpenAI认证URL（使用固定的redirect_uri）
+            auth_url = _build_codex_auth_url(state, pkce_codes["code_challenge"])
 
             # 严格控制认证流程数量
             if len(auth_flows) >= MAX_AUTH_FLOWS:
