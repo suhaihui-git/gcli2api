@@ -1039,7 +1039,8 @@ class SQLiteManager:
         mode: str = "geminicli",
         error_code_filter: Optional[str] = None,
         cooldown_filter: Optional[str] = None,
-        preview_filter: Optional[str] = None
+        preview_filter: Optional[str] = None,
+        expired_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取凭证的摘要信息（不包含完整凭证数据）- 支持分页和状态筛选
@@ -1052,6 +1053,7 @@ class SQLiteManager:
             error_code_filter: 错误码筛选（格式如"400"或"403"，筛选包含该错误码的凭证）
             cooldown_filter: 冷却状态筛选（"in_cooldown"=冷却中, "no_cooldown"=未冷却）
             preview_filter: Preview筛选（"preview"=支持preview, "no_preview"=不支持preview，仅geminicli模式有效）
+            expired_filter: 过期筛选（"expired"=已过期, "not_expired"=未过期，仅codex模式有效）
 
         Returns:
             包含 items（凭证列表）、total（总数）、offset、limit 的字典
@@ -1115,7 +1117,8 @@ class SQLiteManager:
                                usage_body, usage_status_code, usage_ok, usage_used_percent,
                                usage_reset_text, usage_plan_type, usage_allowed,
                                usage_limit_reached, usage_updated_at, usage_body_text,
-                               usage_body_parsed, usage_account_id, usage_email
+                               usage_body_parsed, usage_account_id, usage_email,
+                               credential_data
                         FROM {table_name}
                         {where_clause}
                         ORDER BY rotation_order
@@ -1198,6 +1201,26 @@ class SQLiteManager:
                                 "email": row[19],
                             } if row[8] is not None or row[15] is not None else None
 
+                            # 提取 credential_data 中的 expired 字段
+                            credential_data_json = row[20] or '{}'
+                            try:
+                                credential_data = json.loads(credential_data_json)
+                            except Exception:
+                                credential_data = {}
+                            expired_str = credential_data.get("expired") or credential_data.get("expiry")
+                            token_expired = False
+                            expired_at = None
+                            if expired_str:
+                                try:
+                                    from datetime import datetime, timezone
+                                    expired_dt = datetime.fromisoformat(expired_str)
+                                    token_expired = expired_dt <= datetime.now(timezone.utc)
+                                    expired_at = expired_str
+                                except Exception:
+                                    pass
+                            summary["token_expired"] = token_expired
+                            summary["expired_at"] = expired_at
+
                         # preview状态只对geminicli模式有效
                         if mode == "geminicli":
                             summary["preview"] = bool(row[7]) if row[7] is not None else True
@@ -1209,6 +1232,14 @@ class SQLiteManager:
                                 continue  # 跳过不支持 preview 的凭证
                             elif preview_filter == "no_preview" and preview_value:
                                 continue  # 跳过支持 preview 的凭证
+
+                        # 应用过期筛选（仅对 codex 模式）
+                        if mode == "codex" and expired_filter:
+                            is_expired = summary.get("token_expired", False)
+                            if expired_filter == "expired" and not is_expired:
+                                continue  # 跳过未过期的凭证
+                            elif expired_filter == "not_expired" and is_expired:
+                                continue  # 跳过已过期的凭证
 
                         # 应用冷却筛选
                         if cooldown_filter == "in_cooldown":

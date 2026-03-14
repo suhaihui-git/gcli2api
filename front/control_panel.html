@@ -2679,6 +2679,16 @@
                         </div>
 
                         <div class="filter-group">
+                            <label for="codexExpiredFilter">过期状态</label>
+                            <select id="codexExpiredFilter" class="filter-select"
+                                onchange="applyCodexStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="expired">已过期</option>
+                                <option value="not_expired">未过期</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
                             <label for="codexPageSizeSelect">每页显示</label>
                             <select id="codexPageSizeSelect" class="page-size-select"
                                 onchange="changeCodexPageSize()">

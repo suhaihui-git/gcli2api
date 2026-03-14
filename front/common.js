@@ -64,6 +64,7 @@ function createCredsManager(type) {
         currentErrorCodeFilter: 'all',
         currentCooldownFilter: 'all',
         currentPreviewFilter: 'all',
+        currentExpiredFilter: 'all',
         statsData: { total: 0, normal: 0, disabled: 0 },
         usageResults: {},
         latestFailedFiles: [],
@@ -131,8 +132,9 @@ function createCredsManager(type) {
                 const errorCodeFilter = this.currentErrorCodeFilter || 'all';
                 const cooldownFilter = this.currentCooldownFilter || 'all';
                 const previewFilter = this.currentPreviewFilter || 'all';
+                const expiredFilter = this.currentExpiredFilter || 'all';
                 const response = await authFetch(
-                    `${this.getEndpoint('status')}?offset=${offset}&limit=${this.pageSize}&status_filter=${this.currentStatusFilter}&error_code_filter=${errorCodeFilter}&cooldown_filter=${cooldownFilter}&preview_filter=${previewFilter}&${this.getModeParam()}`
+                    `${this.getEndpoint('status')}?offset=${offset}&limit=${this.pageSize}&status_filter=${this.currentStatusFilter}&error_code_filter=${errorCodeFilter}&cooldown_filter=${cooldownFilter}&preview_filter=${previewFilter}&expired_filter=${expiredFilter}&${this.getModeParam()}`
                 );
 
                 const data = await response.json();
@@ -157,6 +159,8 @@ function createCredsManager(type) {
                             user_email: item.user_email,
                             model_cooldowns: item.model_cooldowns || {},
                             preview: item.preview,
+                            token_expired: item.token_expired,
+                            expired_at: item.expired_at,
                             usageResult
                         };
                     });
@@ -509,6 +513,8 @@ function createCredsManager(type) {
             this.currentErrorCodeFilter = errorCodeFilterEl ? errorCodeFilterEl.value : 'all';
             this.currentCooldownFilter = cooldownFilterEl ? cooldownFilterEl.value : 'all';
             this.currentPreviewFilter = previewFilterEl ? previewFilterEl.value : 'all';
+            const expiredFilterEl = document.getElementById(this.getElementId('ExpiredFilter'));
+            this.currentExpiredFilter = expiredFilterEl ? expiredFilterEl.value : 'all';
             this.currentPage = 1;
             this.refresh();
         },
@@ -1084,6 +1090,17 @@ function createCredCard(credInfo, manager) {
         statusBadges += `<span class="status-badge" style="${usageBadgeStyle}" title="最近一次余额查询状态">Usage ${escapeHtml(String(usageResult.status_code ?? '--'))}</span>`;
         if (usageResult.used_percent !== null && usageResult.used_percent !== undefined && !Number.isNaN(Number(usageResult.used_percent))) {
             statusBadges += `<span class="status-badge" style="background-color: rgba(0, 122, 255, 0.12); color: #0055cc; border: 1px solid rgba(0, 85, 204, 0.18);">已用 ${escapeHtml(formatCodexUsagePercent(usageResult.used_percent))}</span>`;
+        }
+    }
+
+    // Token过期状态显示 (仅对codex模式显示)
+    if (managerType === 'codex' && credInfo.expired_at) {
+        if (credInfo.token_expired) {
+            const expiredTime = new Date(credInfo.expired_at).toLocaleString();
+            statusBadges += `<span class="status-badge" style="background-color: #e74c3c; color: white;" title="Token已过期: ${expiredTime}">已过期</span>`;
+        } else {
+            const expiredTime = new Date(credInfo.expired_at).toLocaleString();
+            statusBadges += `<span class="status-badge" style="background-color: #28a745; color: white;" title="Token过期时间: ${expiredTime}">未过期</span>`;
         }
     }
 

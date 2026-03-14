@@ -486,7 +486,8 @@ async def upload_credentials_common(
 
 async def get_creds_status_common(
     offset: int, limit: int, status_filter: str, mode: str = "geminicli",
-    error_code_filter: str = None, cooldown_filter: str = None, preview_filter: str = None
+    error_code_filter: str = None, cooldown_filter: str = None, preview_filter: str = None,
+    expired_filter: str = None
 ) -> JSONResponse:
     """获取凭证文件状态的通用函数"""
     mode = validate_mode(mode)
@@ -501,6 +502,8 @@ async def get_creds_status_common(
         raise HTTPException(status_code=400, detail="cooldown_filter 只能是 all、in_cooldown 或 no_cooldown")
     if preview_filter and preview_filter not in ["all", "preview", "no_preview"]:
         raise HTTPException(status_code=400, detail="preview_filter 只能是 all、preview 或 no_preview")
+    if expired_filter and expired_filter not in ["all", "expired", "not_expired"]:
+        raise HTTPException(status_code=400, detail="expired_filter 只能是 all、expired 或 not_expired")
 
 
 
@@ -516,7 +519,8 @@ async def get_creds_status_common(
         mode=mode,
         error_code_filter=error_code_filter if error_code_filter and error_code_filter != "all" else None,
         cooldown_filter=cooldown_filter if cooldown_filter and cooldown_filter != "all" else None,
-        preview_filter=preview_filter if preview_filter and preview_filter != "all" else None
+        preview_filter=preview_filter if preview_filter and preview_filter != "all" else None,
+        expired_filter=expired_filter if expired_filter and expired_filter != "all" else None
     )
 
     creds_list = []
@@ -535,6 +539,11 @@ async def get_creds_status_common(
         # 只对 geminicli 模式添加 preview 字段
         if mode == "geminicli":
             cred_info["preview"] = summary.get("preview", True)
+
+        # 对 codex 模式添加过期状态字段
+        if mode == "codex":
+            cred_info["token_expired"] = summary.get("token_expired", False)
+            cred_info["expired_at"] = summary.get("expired_at")
 
         creds_list.append(cred_info)
 
@@ -895,6 +904,7 @@ async def get_creds_status(
     error_code_filter: str = "all",
     cooldown_filter: str = "all",
     preview_filter: str = "all",
+    expired_filter: str = "all",
     mode: str = "geminicli"
 ):
     """
@@ -907,6 +917,7 @@ async def get_creds_status(
         error_code_filter: 错误码筛选（all=全部, 或具体错误码如"400", "403"）
         cooldown_filter: 冷却状态筛选（all=全部, in_cooldown=冷却中, no_cooldown=未冷却）
         preview_filter: Preview筛选（all=全部, preview=支持preview, no_preview=不支持preview，仅geminicli模式有效）
+        expired_filter: 过期筛选（all=全部, expired=已过期, not_expired=未过期，仅codex模式有效）
         mode: 凭证模式（geminicli 或 antigravity）
 
     Returns:
@@ -918,7 +929,8 @@ async def get_creds_status(
             offset, limit, status_filter, mode=mode,
             error_code_filter=error_code_filter,
             cooldown_filter=cooldown_filter,
-            preview_filter=preview_filter
+            preview_filter=preview_filter,
+            expired_filter=expired_filter
         )
     except HTTPException:
         raise
