@@ -10,7 +10,7 @@ security = HTTPBearer()
 
 # ====================== OAuth Configuration ======================
 
-GEMINICLI_USER_AGENT = "GeminiCLI/0.1.5 (Windows; AMD64)"
+GEMINICLI_USER_AGENT = "GeminiCLI/0.34.0 (Windows; AMD64)"
 
 ANTIGRAVITY_USER_AGENT = "antigravity/2.15.8 (Windows; AMD64)"
 
@@ -74,6 +74,7 @@ BASE_MODELS = [
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
     "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview"
 ]
 
 
@@ -133,7 +134,7 @@ def get_available_models(router_type: str = "openai") -> List[str]:
                 thinking_suffixes = ["-high", "-medium", "-low", "-minimal"]
             elif "pro" in base_model:
                 # 3-pro-preview: 支持 high/low
-                thinking_suffixes = ["-high", "-low"]
+                thinking_suffixes = ["-low"]
 
         search_suffix = "-search"
 

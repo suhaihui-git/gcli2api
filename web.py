@@ -31,6 +31,7 @@ from src.router.codex.responses import router as codex_responses_router
 from src.router.codex.model_list import router as codex_model_list_router
 from src.task_manager import shutdown_all_tasks
 from src.panel import router as panel_router
+from src.keeplive import keepalive_service
 
 # 全局凭证管理器
 global_credential_manager = None
@@ -63,10 +64,22 @@ async def lifespan(app: FastAPI):
 
     # OAuth回调服务器将在需要时按需启动
 
+    # 启动保活服务（未配置URL时自动跳过，零开销）
+    try:
+        await keepalive_service.start()
+    except Exception as e:
+        log.error(f"保活服务启动失败: {e}")
+
     yield
 
     # 清理资源
     log.info("开始关闭 Gemini API Pool 主服务")
+
+    # 停止保活服务
+    try:
+        await keepalive_service.stop()
+    except Exception as e:
+        log.error(f"关闭保活服务时出错: {e}")
 
     # 首先关闭所有异步任务
     try:
@@ -161,14 +174,6 @@ async def main():
     log.info("=" * 60)
     log.info(f"控制面板: http://127.0.0.1:{port}")
     log.info("=" * 60)
-    log.info("API端点:")
-    log.info(f"   Geminicli (OpenAI格式): http://127.0.0.1:{port}/v1")
-    log.info(f"   Geminicli (Claude格式): http://127.0.0.1:{port}/v1")
-    log.info(f"   Geminicli (Gemini格式): http://127.0.0.1:{port}")
-    
-    log.info(f"   Antigravity (OpenAI格式): http://127.0.0.1:{port}/antigravity/v1")
-    log.info(f"   Antigravity (Claude格式): http://127.0.0.1:{port}/antigravity/v1")
-    log.info(f"   Antigravity (Gemini格式): http://127.0.0.1:{port}/antigravity")
 
     log.info(f"   Codex (OpenAI格式): http://127.0.0.1:{port}/codex/v1")
     log.info(f"   Codex (Claude格式): http://127.0.0.1:{port}/codex/v1")
