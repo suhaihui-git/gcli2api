@@ -996,8 +996,7 @@ class MongoDBManager:
         mode: str = "geminicli",
         error_code_filter: Optional[str] = None,
         cooldown_filter: Optional[str] = None,
-        preview_filter: Optional[str] = None,
-        expired_filter: Optional[str] = None
+        preview_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取凭证的摘要信息（不包含完整凭证数据）- 支持分页和状态筛选
@@ -1010,7 +1009,6 @@ class MongoDBManager:
             error_code_filter: 错误码筛选（格式如"400"或"403"，筛选包含该错误码的凭证）
             cooldown_filter: 冷却状态筛选（"in_cooldown"=冷却中, "no_cooldown"=未冷却）
             preview_filter: Preview筛选（"preview"=支持preview, "no_preview"=不支持preview，仅geminicli模式有效）
-            expired_filter: 过期筛选（"expired"=已过期, "not_expired"=未过期，仅codex模式有效）
 
         Returns:
             包含 items（凭证列表）、total（总数）、offset、limit 的字典
@@ -1085,8 +1083,6 @@ class MongoDBManager:
                     "usage_body_parsed": 1,
                     "usage_account_id": 1,
                     "usage_email": 1,
-                    "credential_data.expired": 1,
-                    "credential_data.expiry": 1,
                 })
             # preview状态只对geminicli模式有效
             if mode == "geminicli":
@@ -1133,25 +1129,6 @@ class MongoDBManager:
                         "account_id": doc.get("usage_account_id"),
                         "email": doc.get("usage_email"),
                     } if doc.get("usage_status_code") is not None or doc.get("usage_updated_at") is not None else None
-
-                    # 提取 credential_data 中的 expired 字段
-                    credential_data = doc.get("credential_data", {})
-                    if not isinstance(credential_data, dict):
-                        credential_data = {}
-                    expired_str = credential_data.get("expired") or credential_data.get("expiry")
-                    token_expired = False
-                    expired_at = None
-                    if expired_str:
-                        try:
-                            from datetime import datetime, timezone
-                            expired_dt = datetime.fromisoformat(str(expired_str))
-                            token_expired = expired_dt <= datetime.now(timezone.utc)
-                            expired_at = str(expired_str)
-                        except Exception:
-                            pass
-                    summary["token_expired"] = token_expired
-                    summary["expired_at"] = expired_at
-
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     summary["preview"] = doc.get("preview", True)
@@ -1163,14 +1140,6 @@ class MongoDBManager:
                         continue  # 跳过不支持 preview 的凭证
                     elif preview_filter == "no_preview" and preview_value:
                         continue  # 跳过支持 preview 的凭证
-
-                # 应用过期筛选（仅对 codex 模式）
-                if mode == "codex" and expired_filter:
-                    is_expired = summary.get("token_expired", False)
-                    if expired_filter == "expired" and not is_expired:
-                        continue  # 跳过未过期的凭证
-                    elif expired_filter == "not_expired" and is_expired:
-                        continue  # 跳过已过期的凭证
 
                 # 应用冷却筛选
                 if cooldown_filter == "in_cooldown":
