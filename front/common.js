@@ -2357,7 +2357,7 @@ function showChatModal(filename, managerType) {
     const models = isCodex
         ? ['gpt-5.4', 'gpt-5.4(high)', 'gpt-5.4(xhigh)', 'gpt-5.2-codex', 'gpt-5.2(high)', 'gpt-5.2(xhigh)', 'gpt-5.1-codex', 'gpt-5-codex', 'gpt-5.3-codex', 'o4-mini', 'o3', 'gpt-4.1', 'codex-mini-latest']
         : isAntigravity
-        ? ['claude-opus-4-6', 'gemini-3-flash', 'gemini-3.1-pro-preview']
+        ? ['claude-opus-4-6-thinking', 'gemini-3-flash', 'gemini-3.1-pro-preview']
         : ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
 
     const modal = document.createElement('div');
