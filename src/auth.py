@@ -998,6 +998,7 @@ async def asyncio_complete_auth_flow(
                     }
 
                 # 如果需要自动检测项目ID且没有提供项目ID（标准模式）
+                subscription_tier = None
                 if flow_data.get("auto_project_detection", False) and not project_id:
                     log.info("标准模式：从API获取project_id...")
                     # 使用API获取project_id（使用标准模式的User-Agent）
@@ -1075,10 +1076,10 @@ async def asyncio_complete_auth_flow(
                     }
 
                 # 保存凭证
-                saved_filename = await save_credentials(credentials, project_id)
+                saved_filename = await save_credentials(credentials, project_id, subscription_tier=subscription_tier)
 
                 # 准备返回的凭证数据
-                creds_data = _prepare_credentials_data(credentials, project_id, mode="geminicli")
+                creds_data = _prepare_credentials_data(credentials, project_id, mode="geminicli", subscription_tier=subscription_tier)
 
                 # 清理使用过的流程
                 _cleanup_auth_flow_server(state)
@@ -1296,6 +1297,8 @@ async def save_credentials(creds: Credentials, project_id: str, mode: str = "gem
                 "last_success": time.time(),
                 "user_email": None,
             }
+            if subscription_tier:
+                default_state["tier"] = subscription_tier.lower()
             await storage_adapter.update_credential_state(filename, default_state, mode=mode)
             log.info(f"凭证和状态已保存到: {filename} (mode={mode})")
         except Exception as e:

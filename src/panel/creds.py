@@ -849,6 +849,10 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
         if mode == "geminicli":
             state_update["preview"] = True
 
+        # 更新 tier 状态
+        if subscription_tier:
+            state_update["tier"] = subscription_tier.lower()
+
         await storage_adapter.update_credential_state(filename, state_update, mode=mode)
 
         log.info(f"检验 {mode} 凭证成功: {filename} - Project ID: {project_id}, Tier: {subscription_tier} - 已解除禁用并清除错误码")

@@ -1037,6 +1037,7 @@ class SQLiteManager:
                                 "last_success": row[3] or time.time(),
                                 "user_email": row[4],
                                 "model_cooldowns": model_cooldowns,
+                                "tier": row[6] if row[6] is not None else "pro",
                             }
 
                         return states
@@ -1216,6 +1217,10 @@ class SQLiteManager:
                         # preview状态只对geminicli模式有效
                         if mode == "geminicli":
                             summary["preview"] = bool(row[7]) if row[7] is not None else True
+                            summary["tier"] = row[8] if row[8] is not None else "pro"
+                        elif mode != "codex":
+                            # antigravity 模式: tier 在 row[7]
+                            summary["tier"] = row[7] if row[7] is not None else "pro"
 
                         # 应用 preview 筛选（仅对 geminicli 模式）
                         if mode == "geminicli" and preview_filter:
@@ -1225,9 +1230,9 @@ class SQLiteManager:
                             elif preview_filter == "no_preview" and preview_value:
                                 continue  # 跳过支持 preview 的凭证
 
-                                                # 应用tier筛选
+                        # 应用tier筛选
                         if tier_filter and tier_filter in ("free", "pro", "ultra"):
-                            if summary["tier"] != tier_filter:
+                            if summary.get("tier", "pro") != tier_filter:
                                 continue
 
                         # 应用冷却筛选
