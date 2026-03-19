@@ -531,6 +531,31 @@ async def select_default_project(projects: List[Dict[str, Any]]) -> Optional[str
     return project_id
 
 
+
+def _normalize_tier(tier_id: str) -> str:
+    """
+    将 API 返回的 tier ID 归一化为标准值
+
+    示例映射:
+        "g1-free-tier" -> "free"
+        "g1-pro-tier"  -> "pro"
+        "g1-ultra-tier" -> "ultra"
+        "FREE"         -> "free"
+        "PRO"          -> "pro"
+        "ULTRA"        -> "ultra"
+    """
+    tier_lower = tier_id.lower()
+    if "ultra" in tier_lower:
+        return "ultra"
+    elif "pro" in tier_lower:
+        return "pro"
+    elif "free" in tier_lower:
+        return "free"
+    else:
+        log.warning(f"[_normalize_tier] Unknown tier ID: {tier_id}, defaulting to 'pro'")
+        return "pro"
+
+
 async def fetch_project_id_and_tier(
     access_token: str,
     user_agent: str,
@@ -634,6 +659,11 @@ async def _try_load_code_assist(
         elif isinstance(current_tier, dict) and current_tier.get("id"):
             subscription_tier = current_tier.get("id")
             log.info(f"[loadCodeAssist] Found currentTier: {subscription_tier}")
+
+        # 归一化 tier ID（API 返回如 "g1-pro-tier"，需映射为 "pro"）
+        if subscription_tier:
+            subscription_tier = _normalize_tier(subscription_tier)
+            log.info(f"[loadCodeAssist] Normalized tier: {subscription_tier}")
 
         # 检查是否有 currentTier（表示用户已激活）
         if current_tier:
