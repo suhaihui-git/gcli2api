@@ -1139,7 +1139,8 @@ class MongoDBManager:
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     summary["preview"] = doc.get("preview", True)
-                summary["tier"] = doc.get("tier", "pro")
+                raw_tier = doc.get("tier", "pro")
+                summary["tier"] = "ultra" if "ultra" in raw_tier else ("free" if "free" in raw_tier else "pro")
 
                 # 应用 preview 筛选（仅对 geminicli 模式）
                 if mode == "geminicli" and preview_filter:

@@ -1217,10 +1217,12 @@ class SQLiteManager:
                         # preview状态只对geminicli模式有效
                         if mode == "geminicli":
                             summary["preview"] = bool(row[7]) if row[7] is not None else True
-                            summary["tier"] = row[8] if row[8] is not None else "pro"
+                            raw_tier = row[8] if row[8] is not None else "pro"
+                            summary["tier"] = "ultra" if "ultra" in raw_tier else ("free" if "free" in raw_tier else "pro")
                         elif mode != "codex":
                             # antigravity 模式: tier 在 row[7]
-                            summary["tier"] = row[7] if row[7] is not None else "pro"
+                            raw_tier = row[7] if row[7] is not None else "pro"
+                            summary["tier"] = "ultra" if "ultra" in raw_tier else ("free" if "free" in raw_tier else "pro")
 
                         # 应用 preview 筛选（仅对 geminicli 模式）
                         if mode == "geminicli" and preview_filter:

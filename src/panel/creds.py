@@ -30,6 +30,18 @@ from config import get_code_assist_endpoint, get_antigravity_api_url
 from .utils import validate_mode
 
 
+def _normalize_tier(tier_value: str) -> str:
+    """归一化 tier 值（兼容旧数据如 g1-pro-tier）"""
+    t = (tier_value or "pro").lower()
+    if "ultra" in t:
+        return "ultra"
+    elif "pro" in t:
+        return "pro"
+    elif "free" in t:
+        return "free"
+    return "pro"
+
+
 # 创建路由器
 router = APIRouter(prefix="/creds", tags=["credentials"])
 
@@ -532,7 +544,7 @@ async def get_creds_status_common(
             "last_success": summary["last_success"],
             "backend_type": backend_type,
             "model_cooldowns": summary.get("model_cooldowns", {}),
-            "tier": summary.get("tier", "pro"),
+            "tier": _normalize_tier(summary.get("tier", "pro")),
             "usage_result": summary.get("usage_result"),
         }
 
