@@ -25,6 +25,7 @@ class SQLiteManager:
         "user_email",
         "model_cooldowns",
         "preview",
+        "tier",
         "usage_status_code",
         "usage_ok",
         "usage_used_percent",
@@ -50,6 +51,7 @@ class SQLiteManager:
             ("user_email", "TEXT"),
             ("model_cooldowns", "TEXT DEFAULT '{}'"),
             ("preview", "INTEGER DEFAULT 1"),
+            ("tier", "TEXT DEFAULT 'pro'"),
             ("rotation_order", "INTEGER DEFAULT 0"),
             ("call_count", "INTEGER DEFAULT 0"),
             ("created_at", "REAL DEFAULT (unixepoch())"),
@@ -62,6 +64,7 @@ class SQLiteManager:
             ("last_success", "REAL"),
             ("user_email", "TEXT"),
             ("model_cooldowns", "TEXT DEFAULT '{}'"),
+            ("tier", "TEXT DEFAULT 'pro'"),
             ("rotation_order", "INTEGER DEFAULT 0"),
             ("call_count", "INTEGER DEFAULT 0"),
             ("created_at", "REAL DEFAULT (unixepoch())"),
@@ -208,6 +211,9 @@ class SQLiteManager:
                 -- preview 状态 (只对 geminicli 有效，默认为 true)
                 preview INTEGER DEFAULT 1,
 
+                -- tier (free/pro/ultra)
+                tier TEXT DEFAULT 'pro',
+
                 -- 轮换相关
                 rotation_order INTEGER DEFAULT 0,
                 call_count INTEGER DEFAULT 0,
@@ -234,6 +240,9 @@ class SQLiteManager:
 
                 -- 模型级 CD 支持 (JSON: {model_name: cooldown_timestamp})
                 model_cooldowns TEXT DEFAULT '{}',
+
+                -- tier (free/pro/ultra)
+                tier TEXT DEFAULT 'pro',
 
                 -- 轮换相关
                 rotation_order INTEGER DEFAULT 0,
@@ -794,7 +803,7 @@ class SQLiteManager:
                 # 精确匹配
                 if mode == "geminicli":
                     async with db.execute(f"""
-                        SELECT disabled, error_codes, last_success, user_email, model_cooldowns, preview
+                        SELECT disabled, error_codes, last_success, user_email, model_cooldowns, preview, tier
                         FROM {table_name} WHERE filename = ?
                     """, (filename,)) as cursor:
                         row = await cursor.fetchone()
@@ -809,6 +818,7 @@ class SQLiteManager:
                                 "user_email": row[3],
                                 "model_cooldowns": json.loads(model_cooldowns_json),
                                 "preview": bool(row[5]) if row[5] is not None else True,
+                                "tier": row[6] if row[6] is not None else "pro",
                             }
 
                     # 返回默认状态
@@ -819,6 +829,7 @@ class SQLiteManager:
                         "user_email": None,
                         "model_cooldowns": {},
                         "preview": True,
+                        "tier": "pro",
                     }
                 elif mode == "codex":
                     async with db.execute(f"""
@@ -869,7 +880,7 @@ class SQLiteManager:
                 else:
                     # antigravity 模式
                     async with db.execute(f"""
-                        SELECT disabled, error_codes, last_success, user_email, model_cooldowns
+                        SELECT disabled, error_codes, last_success, user_email, model_cooldowns, tier
                         FROM {table_name} WHERE filename = ?
                     """, (filename,)) as cursor:
                         row = await cursor.fetchone()
@@ -883,6 +894,7 @@ class SQLiteManager:
                                 "last_success": row[2] or time.time(),
                                 "user_email": row[3],
                                 "model_cooldowns": json.loads(model_cooldowns_json),
+                                "tier": row[5] if row[5] is not None else "pro",
                             }
 
                     # 返回默认状态
@@ -892,6 +904,7 @@ class SQLiteManager:
                         "last_success": time.time(),
                         "user_email": None,
                         "model_cooldowns": {},
+                        "tier": "pro",
                     }
 
         except Exception as e:
@@ -908,7 +921,7 @@ class SQLiteManager:
                 if mode == "geminicli":
                     async with db.execute(f"""
                         SELECT filename, disabled, error_codes, last_success,
-                               user_email, model_cooldowns, preview
+                               user_email, model_cooldowns, preview, tier
                         FROM {table_name}
                     """) as cursor:
                         rows = await cursor.fetchall()
@@ -936,6 +949,7 @@ class SQLiteManager:
                                 "user_email": row[4],
                                 "model_cooldowns": model_cooldowns,
                                 "preview": bool(row[6]) if row[6] is not None else True,
+                                "tier": row[7] if row[7] is not None else "pro",
                             }
 
                         return states
@@ -996,7 +1010,7 @@ class SQLiteManager:
                     # antigravity 模式
                     async with db.execute(f"""
                         SELECT filename, disabled, error_codes, last_success,
-                               user_email, model_cooldowns
+                               user_email, model_cooldowns, tier
                         FROM {table_name}
                     """) as cursor:
                         rows = await cursor.fetchall()
@@ -1039,7 +1053,8 @@ class SQLiteManager:
         mode: str = "geminicli",
         error_code_filter: Optional[str] = None,
         cooldown_filter: Optional[str] = None,
-        preview_filter: Optional[str] = None
+        preview_filter: Optional[str] = None,
+        tier_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取凭证的摘要信息（不包含完整凭证数据）- 支持分页和状态筛选
@@ -1103,7 +1118,7 @@ class SQLiteManager:
                 if mode == "geminicli":
                     all_query = f"""
                         SELECT filename, disabled, error_codes, last_success,
-                               user_email, rotation_order, model_cooldowns, preview
+                               user_email, rotation_order, model_cooldowns, preview, tier
                         FROM {table_name}
                         {where_clause}
                         ORDER BY rotation_order
@@ -1123,7 +1138,7 @@ class SQLiteManager:
                 else:
                     all_query = f"""
                         SELECT filename, disabled, error_codes, last_success,
-                               user_email, rotation_order, model_cooldowns
+                               user_email, rotation_order, model_cooldowns, tier
                         FROM {table_name}
                         {where_clause}
                         ORDER BY rotation_order
@@ -1209,6 +1224,11 @@ class SQLiteManager:
                                 continue  # 跳过不支持 preview 的凭证
                             elif preview_filter == "no_preview" and preview_value:
                                 continue  # 跳过支持 preview 的凭证
+
+                                                # 应用tier筛选
+                        if tier_filter and tier_filter in ("free", "pro", "ultra"):
+                            if summary["tier"] != tier_filter:
+                                continue
 
                         # 应用冷却筛选
                         if cooldown_filter == "in_cooldown":

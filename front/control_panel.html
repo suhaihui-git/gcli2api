@@ -2377,6 +2377,16 @@
                         </div>
 
                         <div class="filter-group">
+                            <label for="tierFilter">Tier</label>
+                            <select id="tierFilter" class="filter-select" onchange="applyStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="ultra">Ultra</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
                             <label for="pageSizeSelect">每页显示</label>
                             <select id="pageSizeSelect" class="page-size-select" onchange="changePageSize()">
                                 <option value="20">20</option>
@@ -2514,6 +2524,16 @@
                                 <option value="all">全部</option>
                                 <option value="in_cooldown">CD中</option>
                                 <option value="no_cooldown">未CD</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="antigravityTierFilter">Tier</label>
+                            <select id="antigravityTierFilter" class="filter-select" onchange="applyAntigravityStatusFilter()">
+                                <option value="all">全部</option>
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="ultra">Ultra</option>
                             </select>
                         </div>
 

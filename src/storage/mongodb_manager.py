@@ -588,6 +588,8 @@ class MongoDBManager:
                     # preview状态只对geminicli模式有效，默认为True
                     if mode == "geminicli":
                         new_credential["preview"] = True
+                    # tier 默认为 pro
+                    new_credential["tier"] = "pro"
 
                     await collection.insert_one(new_credential)
                     # 新凭证插入成功，添加到 Redis 可用池
@@ -881,6 +883,7 @@ class MongoDBManager:
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     state["preview"] = doc.get("preview", True)
+                state["tier"] = doc.get("tier", "pro")
                 return state
 
             # 返回默认状态
@@ -890,10 +893,9 @@ class MongoDBManager:
                 "last_success": current_time,
                 "user_email": None,
                 "model_cooldowns": {},
+                "preview": True,
+                "tier": "pro",
             }
-            # preview状态只对geminicli模式有效
-            if mode == "geminicli":
-                default_state["preview"] = True
             return default_state
 
         except Exception as e:
@@ -916,6 +918,7 @@ class MongoDBManager:
                 "last_success": 1,
                 "user_email": 1,
                 "model_cooldowns": 1,
+                "tier": 1,
                 "_id": 0
             }
             if mode == "codex":
@@ -980,6 +983,7 @@ class MongoDBManager:
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     state["preview"] = doc.get("preview", True)
+                state["tier"] = doc.get("tier", "pro")
                 states[filename] = state
 
             return states
@@ -996,7 +1000,8 @@ class MongoDBManager:
         mode: str = "geminicli",
         error_code_filter: Optional[str] = None,
         cooldown_filter: Optional[str] = None,
-        preview_filter: Optional[str] = None
+        preview_filter: Optional[str] = None,
+        tier_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取凭证的摘要信息（不包含完整凭证数据）- 支持分页和状态筛选
@@ -1009,6 +1014,7 @@ class MongoDBManager:
             error_code_filter: 错误码筛选（格式如"400"或"403"，筛选包含该错误码的凭证）
             cooldown_filter: 冷却状态筛选（"in_cooldown"=冷却中, "no_cooldown"=未冷却）
             preview_filter: Preview筛选（"preview"=支持preview, "no_preview"=不支持preview，仅geminicli模式有效）
+            tier_filter: tier筛选（"free", "pro", "ultra"）
 
         Returns:
             包含 items（凭证列表）、total（总数）、offset、limit 的字典
@@ -1066,6 +1072,7 @@ class MongoDBManager:
                 "user_email": 1,
                 "rotation_order": 1,
                 "model_cooldowns": 1,
+                "tier": 1,
                 "_id": 0
             }
             if mode == "codex":
@@ -1132,6 +1139,7 @@ class MongoDBManager:
                 # preview状态只对geminicli模式有效
                 if mode == "geminicli":
                     summary["preview"] = doc.get("preview", True)
+                summary["tier"] = doc.get("tier", "pro")
 
                 # 应用 preview 筛选（仅对 geminicli 模式）
                 if mode == "geminicli" and preview_filter:
@@ -1140,6 +1148,11 @@ class MongoDBManager:
                         continue  # 跳过不支持 preview 的凭证
                     elif preview_filter == "no_preview" and preview_value:
                         continue  # 跳过支持 preview 的凭证
+
+                # 应用 tier 筛选
+                if tier_filter and tier_filter in ("free", "pro", "ultra"):
+                    if summary["tier"] != tier_filter:
+                        continue
 
                 # 应用冷却筛选
                 if cooldown_filter == "in_cooldown":

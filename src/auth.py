@@ -24,7 +24,7 @@ from .google_oauth_api import (
     Credentials,
     Flow,
     enable_required_apis,
-    fetch_project_id,
+    fetch_project_id_and_tier,
     get_user_projects,
     select_default_project,
 )
@@ -239,7 +239,7 @@ async def _complete_codex_auth(flow_data: Dict[str, Any], auth_code: str, state:
         return {"success": False, "error": f"Codex认证失败: {str(e)}"}
 
 
-def _prepare_credentials_data(credentials: Credentials, project_id: str, mode: str = "geminicli") -> Dict[str, Any]:
+def _prepare_credentials_data(credentials: Credentials, project_id: str, mode: str = "geminicli", subscription_tier: str = None) -> Dict[str, Any]:
     """准备凭证数据字典（统一函数）"""
     if mode == "antigravity":
         creds_data = {
@@ -261,6 +261,9 @@ def _prepare_credentials_data(credentials: Credentials, project_id: str, mode: s
             "token_uri": TOKEN_URL,
             "project_id": project_id,
         }
+
+    if subscription_tier:
+        creds_data["subscription_tier"] = subscription_tier
 
     if credentials.expires_at:
         if credentials.expires_at.tzinfo is None:
@@ -964,23 +967,23 @@ async def asyncio_complete_auth_flow(
                     log.info("Antigravity模式：从API获取project_id...")
                     # 使用API获取project_id
                     antigravity_url = await get_antigravity_api_url()
-                    project_id = await fetch_project_id(
+                    project_id, subscription_tier = await fetch_project_id_and_tier(
                         credentials.access_token,
                         ANTIGRAVITY_USER_AGENT,
                         antigravity_url
                     )
                     if project_id:
-                        log.info(f"成功从API获取project_id: {project_id}")
+                        log.info(f"成功从API获取project_id: {project_id}, tier: {subscription_tier}")
                     else:
                         log.warning("无法从API获取project_id，回退到随机生成")
                         project_id = _generate_random_project_id()
                         log.info(f"生成的随机project_id: {project_id}")
 
                     # 保存antigravity凭证
-                    saved_filename = await save_credentials(credentials, project_id, mode="antigravity")
+                    saved_filename = await save_credentials(credentials, project_id, mode="antigravity", subscription_tier=subscription_tier)
 
                     # 准备返回的凭证数据
-                    creds_data = _prepare_credentials_data(credentials, project_id, mode="antigravity")
+                    creds_data = _prepare_credentials_data(credentials, project_id, mode="antigravity", subscription_tier=subscription_tier)
 
                     # 清理使用过的流程
                     _cleanup_auth_flow_server(state)
@@ -999,14 +1002,14 @@ async def asyncio_complete_auth_flow(
                     log.info("标准模式：从API获取project_id...")
                     # 使用API获取project_id（使用标准模式的User-Agent）
                     code_assist_url = await get_code_assist_endpoint()
-                    project_id = await fetch_project_id(
+                    project_id, subscription_tier = await fetch_project_id_and_tier(
                         credentials.access_token,
                         GEMINICLI_USER_AGENT,
                         code_assist_url
                     )
                     if project_id:
                         flow_data["project_id"] = project_id
-                        log.info(f"成功从API获取project_id: {project_id}")
+                        log.info(f"成功从API获取project_id: {project_id}, tier: {subscription_tier}")
                         # 自动启用必需的API服务
                         log.info("正在自动启用必需的API服务...")
                         await enable_required_apis(credentials, project_id)
@@ -1148,23 +1151,23 @@ async def complete_auth_flow_from_callback_url(
                 log.info("Antigravity模式（从回调URL）：从API获取project_id...")
                 # 使用API获取project_id
                 antigravity_url = await get_antigravity_api_url()
-                project_id = await fetch_project_id(
+                project_id, subscription_tier = await fetch_project_id_and_tier(
                     credentials.access_token,
                     ANTIGRAVITY_USER_AGENT,
                     antigravity_url
                 )
                 if project_id:
-                    log.info(f"成功从API获取project_id: {project_id}")
+                    log.info(f"成功从API获取project_id: {project_id}, tier: {subscription_tier}")
                 else:
                     log.warning("无法从API获取project_id，回退到随机生成")
                     project_id = _generate_random_project_id()
                     log.info(f"生成的随机project_id: {project_id}")
 
                 # 保存antigravity凭证
-                saved_filename = await save_credentials(credentials, project_id, mode="antigravity")
+                saved_filename = await save_credentials(credentials, project_id, mode="antigravity", subscription_tier=subscription_tier)
 
                 # 准备返回的凭证数据
-                creds_data = _prepare_credentials_data(credentials, project_id, mode="antigravity")
+                creds_data = _prepare_credentials_data(credentials, project_id, mode="antigravity", subscription_tier=subscription_tier)
 
                 # 清理使用过的流程
                 _cleanup_auth_flow_server(state)
@@ -1183,18 +1186,18 @@ async def complete_auth_flow_from_callback_url(
             auto_detected = False
 
             if not project_id:
-                # 尝试使用fetch_project_id自动获取项目ID
+                # 尝试使用fetch_project_id_and_tier自动获取项目ID
                 try:
                     log.info("标准模式：从API获取project_id...")
                     code_assist_url = await get_code_assist_endpoint()
-                    detected_project_id = await fetch_project_id(
+                    detected_project_id, subscription_tier = await fetch_project_id_and_tier(
                         credentials.access_token,
                         GEMINICLI_USER_AGENT,
                         code_assist_url
                     )
                     if detected_project_id:
                         auto_detected = True
-                        log.info(f"成功从API获取project_id: {detected_project_id}")
+                        log.info(f"成功从API获取project_id: {detected_project_id}, tier: {subscription_tier}")
                     else:
                         log.warning("无法从API获取project_id，回退到项目列表获取方式")
                         # 回退到原来的项目列表获取方式
@@ -1241,10 +1244,10 @@ async def complete_auth_flow_from_callback_url(
                     log.warning(f"启用API服务失败: {e}")
 
             # 保存凭证
-            saved_filename = await save_credentials(credentials, detected_project_id)
+            saved_filename = await save_credentials(credentials, detected_project_id, subscription_tier=subscription_tier)
 
             # 准备返回的凭证数据
-            creds_data = _prepare_credentials_data(credentials, detected_project_id, mode="geminicli")
+            creds_data = _prepare_credentials_data(credentials, detected_project_id, mode="geminicli", subscription_tier=subscription_tier)
 
             # 清理使用过的流程
             _cleanup_auth_flow_server(state)
@@ -1266,7 +1269,7 @@ async def complete_auth_flow_from_callback_url(
         return {"success": False, "error": str(e)}
 
 
-async def save_credentials(creds: Credentials, project_id: str, mode: str = "geminicli") -> str:
+async def save_credentials(creds: Credentials, project_id: str, mode: str = "geminicli", subscription_tier: str = None) -> str:
     """通过统一存储系统保存凭证"""
     # 生成文件名（使用project_id和时间戳）
     timestamp = int(time.time())
@@ -1278,7 +1281,7 @@ async def save_credentials(creds: Credentials, project_id: str, mode: str = "gem
         filename = f"{project_id}-{timestamp}.json"
 
     # 准备凭证数据
-    creds_data = _prepare_credentials_data(creds, project_id, mode)
+    creds_data = _prepare_credentials_data(creds, project_id, mode, subscription_tier)
 
     # 通过存储适配器保存
     storage_adapter = await get_storage_adapter()

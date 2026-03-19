@@ -24,7 +24,7 @@ from src.storage_adapter import get_storage_adapter
 from src.utils import verify_panel_token, GEMINICLI_USER_AGENT, ANTIGRAVITY_USER_AGENT
 from src.api.antigravity import fetch_quota_info
 from src.api.codex import build_codex_headers, _extract_codex_creds
-from src.google_oauth_api import Credentials, fetch_project_id
+from src.google_oauth_api import Credentials, fetch_project_id_and_tier
 from src.httpx_client import get_async
 from config import get_code_assist_endpoint, get_antigravity_api_url
 from .utils import validate_mode
@@ -486,7 +486,7 @@ async def upload_credentials_common(
 
 async def get_creds_status_common(
     offset: int, limit: int, status_filter: str, mode: str = "geminicli",
-    error_code_filter: str = None, cooldown_filter: str = None, preview_filter: str = None
+    error_code_filter: str = None, cooldown_filter: str = None, preview_filter: str = None, tier_filter: str = None
 ) -> JSONResponse:
     """获取凭证文件状态的通用函数"""
     mode = validate_mode(mode)
@@ -501,6 +501,8 @@ async def get_creds_status_common(
         raise HTTPException(status_code=400, detail="cooldown_filter 只能是 all、in_cooldown 或 no_cooldown")
     if preview_filter and preview_filter not in ["all", "preview", "no_preview"]:
         raise HTTPException(status_code=400, detail="preview_filter 只能是 all、preview 或 no_preview")
+    if tier_filter and tier_filter not in ["all", "free", "pro", "ultra"]:
+        raise HTTPException(status_code=400, detail="tier_filter 只能是 all、free、pro 或 ultra")
 
 
 
@@ -516,7 +518,8 @@ async def get_creds_status_common(
         mode=mode,
         error_code_filter=error_code_filter if error_code_filter and error_code_filter != "all" else None,
         cooldown_filter=cooldown_filter if cooldown_filter and cooldown_filter != "all" else None,
-        preview_filter=preview_filter if preview_filter and preview_filter != "all" else None
+        preview_filter=preview_filter if preview_filter and preview_filter != "all" else None,
+        tier_filter=tier_filter if tier_filter and tier_filter != "all" else None
     )
 
     creds_list = []
@@ -529,10 +532,10 @@ async def get_creds_status_common(
             "last_success": summary["last_success"],
             "backend_type": backend_type,
             "model_cooldowns": summary.get("model_cooldowns", {}),
+            "tier": summary.get("tier", "pro"),
             "usage_result": summary.get("usage_result"),
         }
 
-        # 只对 geminicli 模式添加 preview 字段
         if mode == "geminicli":
             cred_info["preview"] = summary.get("preview", True)
 
@@ -822,15 +825,18 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
         user_agent = GEMINICLI_USER_AGENT
 
     # 重新获取project id
-    project_id = await fetch_project_id(
+    project_id, subscription_tier = await fetch_project_id_and_tier(
         access_token=credentials.access_token,
         user_agent=user_agent,
         api_base_url=api_base_url
     )
 
     if project_id:
-        # 更新凭证数据中的project_id
         credential_data["project_id"] = project_id
+    if subscription_tier:
+        credential_data["subscription_tier"] = subscription_tier
+
+    if project_id or subscription_tier:
         await storage_adapter.store_credential(filename, credential_data, mode=mode)
 
         # 检验成功后自动解除禁用状态并清除错误码
@@ -845,12 +851,13 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
 
         await storage_adapter.update_credential_state(filename, state_update, mode=mode)
 
-        log.info(f"检验 {mode} 凭证成功: {filename} - Project ID: {project_id} - 已解除禁用并清除错误码")
+        log.info(f"检验 {mode} 凭证成功: {filename} - Project ID: {project_id}, Tier: {subscription_tier} - 已解除禁用并清除错误码")
 
         return JSONResponse(content={
             "success": True,
             "filename": filename,
             "project_id": project_id,
+            "subscription_tier": subscription_tier,
             "message": "检验成功！Project ID已更新，已解除禁用状态并清除错误码，403错误应该已恢复"
         })
     else:
@@ -895,6 +902,7 @@ async def get_creds_status(
     error_code_filter: str = "all",
     cooldown_filter: str = "all",
     preview_filter: str = "all",
+    tier_filter: str = "all",
     mode: str = "geminicli"
 ):
     """
@@ -907,6 +915,7 @@ async def get_creds_status(
         error_code_filter: 错误码筛选（all=全部, 或具体错误码如"400", "403"）
         cooldown_filter: 冷却状态筛选（all=全部, in_cooldown=冷却中, no_cooldown=未冷却）
         preview_filter: Preview筛选（all=全部, preview=支持preview, no_preview=不支持preview，仅geminicli模式有效）
+        tier_filter: tier筛选（all=全部, free/pro/ultra）
         mode: 凭证模式（geminicli 或 antigravity）
 
     Returns:
@@ -918,7 +927,8 @@ async def get_creds_status(
             offset, limit, status_filter, mode=mode,
             error_code_filter=error_code_filter,
             cooldown_filter=cooldown_filter,
-            preview_filter=preview_filter
+            preview_filter=preview_filter,
+            tier_filter=tier_filter
         )
     except HTTPException:
         raise
