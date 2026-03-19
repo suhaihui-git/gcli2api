@@ -1101,11 +1101,15 @@ function createCredCard(credInfo, manager) {
         }
     }
 
-    // tier 状态显示 (geminicli 和 antigravity 都显示)
+    // tier 标签（将显示在文件名旁边）
     const tier = (credInfo.tier || 'pro').toString().toLowerCase();
-    const tierLabel = tier.toUpperCase();
-    const tierColor = tier === 'ultra' ? '#ff9800' : (tier === 'free' ? '#607d8b' : '#2e7d32');
-    statusBadges += `<span class="status-badge" style="background-color: ${tierColor}; color: white;" title="凭证等级: ${tierLabel}">Tier: ${tierLabel}</span>`;
+    const tierNorm = tier.includes('ultra') ? 'ultra' : (tier.includes('free') ? 'free' : 'pro');
+    const tierStyles = {
+        free: 'background: #f5f5f5; color: #757575; border: 1px solid #bdbdbd;',
+        pro: 'background: linear-gradient(135deg, #1b5e20, #388e3c); color: white; border: 1px solid #2e7d32; font-weight: 600;',
+        ultra: 'background: linear-gradient(135deg, #e65100, #ff9800); color: white; border: 1px solid #ef6c00; font-weight: 600; box-shadow: 0 0 6px rgba(255,152,0,0.4);'
+    };
+    const tierBadgeHtml = `<span style="display:inline-block; padding: 1px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.5px; ${tierStyles[tierNorm]}" title="凭证等级">${tierNorm.toUpperCase()}</span>`;
 
     // 模型级冷却状态
     if (credInfo.model_cooldowns && Object.keys(credInfo.model_cooldowns).length > 0) {
@@ -1172,7 +1176,7 @@ function createCredCard(credInfo, manager) {
             <div style="display: flex; align-items: center; gap: 10px;">
                 <input type="checkbox" class="${checkboxClass}" data-filename="${filename}" onchange="toggle${fnPrefix}FileSelection('${filename}')">
                 <div>
-                    <div class="cred-filename">${filename}</div>
+                    <div class="cred-filename">${filename}${tierBadgeHtml}</div>
                     ${emailInfo}
                 </div>
             </div>
