@@ -100,7 +100,7 @@ async def stream_request(
         # 如果返回值是None，直接返回错误500
         log.error("[ANTIGRAVITY STREAM] 当前无可用凭证")
         yield Response(
-            content=json.dumps({"error": "当前无可用凭证"}),
+            content=json.dumps({"error": "No available credentials"}),
             status_code=500,
             media_type="application/json"
         )
@@ -309,7 +309,7 @@ async def stream_request(
                 if not await refresh_credential_fast():
                     log.error("[ANTIGRAVITY STREAM] 重试时无可用凭证或令牌")
                     yield Response(
-                        content=json.dumps({"error": "当前无可用凭证"}),
+                        content=json.dumps({"error": "No available credentials"}),
                         status_code=500,
                         media_type="application/json"
                     )
@@ -388,7 +388,7 @@ async def non_stream_request(
         # 如果返回值是None，直接返回错误500
         log.error("[ANTIGRAVITY] 当前无可用凭证")
         return Response(
-            content=json.dumps({"error": "当前无可用凭证"}),
+            content=json.dumps({"error": "No available credentials"}),
             status_code=500,
             media_type="application/json"
         )
@@ -589,7 +589,7 @@ async def non_stream_request(
                 if not await refresh_credential_fast():
                     log.error("[ANTIGRAVITY] 重试时无可用凭证或令牌")
                     return Response(
-                        content=json.dumps({"error": "当前无可用凭证"}),
+                        content=json.dumps({"error": "No available credentials"}),
                         status_code=500,
                         media_type="application/json"
                     )

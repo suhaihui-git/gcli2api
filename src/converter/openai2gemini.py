@@ -15,6 +15,7 @@ from src.converter.thoughtSignature_fix import (
     decode_tool_id_and_signature,
 )
 from src.converter.utils import merge_system_messages
+from src.openai_errors import normalize_openai_error, openai_error_sse_bytes
 
 from log import log
 
@@ -1206,7 +1207,7 @@ def convert_gemini_to_openai_response(
     """
     将 Gemini 格式非流式响应转换为 OpenAI 格式非流式响应
 
-    注意: 如果收到的不是 200 开头的响应,不做任何处理,直接转发原始响应
+    注意: 错误响应会统一规范为 OpenAI error schema
 
     Args:
         gemini_response: Gemini 格式的响应体 (字典或响应对象)
@@ -1214,26 +1215,15 @@ def convert_gemini_to_openai_response(
         status_code: HTTP 状态码 (默认 200)
 
     Returns:
-        OpenAI 格式的响应体字典,或原始响应 (如果状态码不是 2xx)
+        OpenAI 格式的响应体字典
     """
-    # 非 2xx 状态码直接返回原始响应
+    # 非 2xx 状态码统一转换为 OpenAI 错误格式
     if not (200 <= status_code < 300):
-        if isinstance(gemini_response, dict):
-            return gemini_response
-        else:
-            # 如果是响应对象,尝试解析为字典
-            try:
-                if hasattr(gemini_response, "json"):
-                    return gemini_response.json()
-                elif hasattr(gemini_response, "body"):
-                    body = gemini_response.body
-                    if isinstance(body, bytes):
-                        return json.loads(body.decode())
-                    return json.loads(str(body))
-                else:
-                    return {"error": str(gemini_response)}
-            except Exception:
-                return {"error": str(gemini_response)}
+        return normalize_openai_error(
+            gemini_response,
+            status_code=status_code,
+            default_message="Upstream Gemini request failed",
+        )
 
     # 确保是字典格式
     if not isinstance(gemini_response, dict):
@@ -1249,11 +1239,22 @@ def convert_gemini_to_openai_response(
             else:
                 gemini_response = json.loads(str(gemini_response))
         except Exception:
-            return {"error": "Invalid response format"}
+            return normalize_openai_error(
+                "Invalid response format",
+                status_code=500,
+                default_message="Invalid response format",
+            )
 
     # 处理 GeminiCLI 的 response 包装格式
     if "response" in gemini_response:
         gemini_response = gemini_response["response"]
+
+    if "error" in gemini_response:
+        return normalize_openai_error(
+            gemini_response,
+            status_code=status_code,
+            default_message="Upstream Gemini request failed",
+        )
 
     # 转换为 OpenAI 格式
     choices = []
@@ -1379,7 +1380,7 @@ def convert_gemini_to_openai_stream(
     """
     将 Gemini 格式流式响应块转换为 OpenAI SSE 格式流式响应
 
-    注意: 如果收到的不是 200 开头的响应,不做任何处理,直接转发原始内容
+    注意: 错误响应会统一规范为 OpenAI error schema
 
     Args:
         gemini_stream_chunk: Gemini 格式的流式响应块 (字符串,通常是 "data: {json}" 格式)
@@ -1389,12 +1390,15 @@ def convert_gemini_to_openai_stream(
 
     Returns:
         OpenAI SSE 格式的响应字符串 (如 "data: {json}\n\n"),
-        或原始内容 (如果状态码不是 2xx),
         或 None (如果解析失败)
     """
-    # 非 2xx 状态码直接返回原始内容
+    # 非 2xx 状态码统一转换为 OpenAI 错误格式
     if not (200 <= status_code < 300):
-        return gemini_stream_chunk
+        return openai_error_sse_bytes(
+            gemini_stream_chunk,
+            status_code=status_code,
+            default_message="Upstream Gemini stream failed",
+        ).decode("utf-8")
 
     # 解析 Gemini 流式块
     try:
@@ -1425,6 +1429,22 @@ def convert_gemini_to_openai_stream(
         gemini_response = gemini_chunk["response"]
     else:
         gemini_response = gemini_chunk
+
+    if "error" in gemini_response:
+        error_status_code = status_code
+        if 200 <= status_code < 300:
+            raw_error_code = gemini_response.get("error", {}).get("code")
+            if isinstance(raw_error_code, int):
+                error_status_code = raw_error_code
+            elif isinstance(raw_error_code, str) and raw_error_code.isdigit():
+                error_status_code = int(raw_error_code)
+            else:
+                error_status_code = 500
+        return openai_error_sse_bytes(
+            gemini_response,
+            status_code=error_status_code,
+            default_message="Upstream Gemini stream failed",
+        ).decode("utf-8")
 
     # 转换为 OpenAI 流式格式
     choices = []

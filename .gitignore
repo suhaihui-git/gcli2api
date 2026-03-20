@@ -95,8 +95,14 @@ log.txt
 *.tmp
 *.temp
 *.bak
+_tmp_*/
+_tmp_*
+frontend/_tmp_*/
+frontend/_tmp_*
+tmp-*.png
 
 # Archives
 *.zip
 
 tools/
+frontend/node_modules/

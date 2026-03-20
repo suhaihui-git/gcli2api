@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from log import log
 from src.converter.openai2codex import parse_model_thinking_suffix
+from src.openai_errors import openai_error_response, openai_error_sse_bytes
 from src.utils import authenticate_bearer
 
 router = APIRouter()
@@ -84,9 +85,17 @@ async def responses(
         body = await request.json()
     except Exception as e:
         log.error(f"[CODEX-RESPONSES] Failed to parse request body: {e}")
-        return JSONResponse(
-            content={"error": {"message": "Invalid JSON", "type": "invalid_request_error"}},
+        return openai_error_response(
+            "Invalid JSON",
             status_code=400,
+            default_message="Invalid JSON",
+        )
+
+    if not isinstance(body, dict):
+        return openai_error_response(
+            "Request body must be a JSON object",
+            status_code=400,
+            default_message="Request body must be a JSON object",
         )
 
     model = body.get("model", "")
@@ -132,13 +141,18 @@ async def responses(
             codex_response = json.loads(response_body)
         except Exception as e:
             log.error(f"[CODEX-RESPONSES] Failed to parse response: {e}")
-            return JSONResponse(
-                content={"error": {"message": "Response parsing failed", "type": "server_error"}},
+            return openai_error_response(
+                "Response parsing failed",
                 status_code=500,
+                default_message="Response parsing failed",
             )
 
         if status_code != 200:
-            return JSONResponse(content=codex_response, status_code=status_code)
+            return openai_error_response(
+                codex_response,
+                status_code=status_code,
+                default_message="Upstream Codex request failed",
+            )
 
         # 恢复 instructions（参考 CPA 的 response 处理）
         response_obj = codex_response.get("response") if isinstance(codex_response.get("response"), dict) else codex_response
@@ -158,9 +172,14 @@ async def responses(
             # 检查是否是 Response 对象（错误情况）
             if isinstance(chunk, Response):
                 error_content = (
-                    chunk.body if isinstance(chunk.body, bytes) else chunk.body.encode("utf-8")
+                    chunk.body if isinstance(chunk.body, bytes) else (chunk.body or "")
                 )
-                yield error_content
+                yield openai_error_sse_bytes(
+                    error_content,
+                    status_code=chunk.status_code,
+                    default_message="Upstream Codex request failed",
+                    event="error",
+                )
                 return
 
             # 直通 SSE 数据（Responses 格式上游和下游一致）

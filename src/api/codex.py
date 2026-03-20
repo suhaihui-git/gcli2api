@@ -245,7 +245,7 @@ async def stream_request(
                 log.error(f"[CODEX] 没有可用的 Codex 凭证 (model={model_name})")
                 error_resp = {
                     "error": {
-                        "message": "No available Codex credentials",
+                        "message": "No available credentials",
                         "type": "server_error",
                         "code": "no_credentials",
                     }
@@ -461,7 +461,7 @@ async def non_stream_request(
                 return Response(
                     content=json.dumps({
                         "error": {
-                            "message": "No available Codex credentials",
+                            "message": "No available credentials",
                             "type": "server_error",
                             "code": "no_credentials",
                         }

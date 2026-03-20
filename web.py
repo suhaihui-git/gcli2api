@@ -6,12 +6,19 @@ Main Web Integration - Integrates all routers and modules
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import get_server_host, get_server_port
 from log import log
+from src.openai_errors import is_openai_compatible_path, openai_error_response
 
 # Import managers and utilities
 from src.credential_manager import credential_manager
@@ -115,6 +122,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(HTTPException)
+async def openai_http_exception_handler(request: Request, exc: HTTPException):
+    if is_openai_compatible_path(request.url.path):
+        return openai_error_response(
+            {"detail": exc.detail},
+            status_code=exc.status_code,
+            default_message="Request failed",
+            headers=exc.headers,
+        )
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def openai_validation_exception_handler(request: Request, exc: RequestValidationError):
+    if is_openai_compatible_path(request.url.path):
+        return openai_error_response(
+            {"detail": exc.errors()},
+            status_code=400,
+            default_message="Invalid request body",
+        )
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def openai_unhandled_exception_handler(request: Request, exc: Exception):
+    log.error(f"Unhandled exception on {request.url.path}: {exc}")
+    if is_openai_compatible_path(request.url.path):
+        return openai_error_response(
+            status_code=500,
+            default_message="Internal server error",
+        )
+    return PlainTextResponse("Internal Server Error", status_code=500)
 
 # 挂载路由器
 # OpenAI兼容路由 - 处理OpenAI格式请求

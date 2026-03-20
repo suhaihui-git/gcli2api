@@ -1,7 +1,20 @@
-# Multi-stage build for gemini-api-pool
-FROM python:3.13-slim as base
+# Stage 1: build frontend assets
+FROM node:20-alpine AS frontend
 
-# Set environment variables
+WORKDIR /frontend
+
+RUN corepack enable pnpm
+
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY frontend/ ./
+RUN pnpm build
+
+
+# Stage 2: runtime
+FROM python:3.13-slim AS runtime
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -10,17 +23,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Copy only requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
+COPY --from=frontend /front ./front
 
-# Expose port
 EXPOSE 7861
 
-# Default command
 CMD ["python", "web.py"]

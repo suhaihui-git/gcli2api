@@ -5,7 +5,7 @@ OpenAI Router - Handles OpenAI format API requests via Codex
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from log import log
@@ -17,6 +17,7 @@ from src.converter.codex2openai import (
 )
 from src.converter.openai2codex import convert_openai_to_codex_request, _build_reverse_name_map_openai
 from src.models import OpenAIChatCompletionRequest, model_to_dict
+from src.openai_errors import openai_error_response, openai_error_sse_bytes
 from src.router.hi_check import create_health_check_response, is_health_check_request
 from src.utils import authenticate_bearer
 
@@ -79,10 +80,18 @@ async def chat_completions(
             codex_response = json.loads(response_body)
         except Exception as e:
             log.error(f"[CODEX-OPENAI] Failed to parse Codex response: {e}")
-            raise HTTPException(status_code=500, detail="Response parsing failed")
+            return openai_error_response(
+                "Response parsing failed",
+                status_code=500,
+                default_message="Response parsing failed",
+            )
 
         if status_code != 200:
-            return JSONResponse(content=codex_response, status_code=status_code)
+            return openai_error_response(
+                codex_response,
+                status_code=status_code,
+                default_message="Upstream Codex request failed",
+            )
 
         # 将 Codex 非流式响应转换为 OpenAI 格式
         # Codex 非流式响应本身就类似 response.completed 事件
@@ -103,10 +112,13 @@ async def chat_completions(
         async for chunk in stream_gen:
             # 检查是否是 Response 对象（错误情况）
             if isinstance(chunk, Response):
-                error_content = (
-                    chunk.body if isinstance(chunk.body, bytes) else chunk.body.encode("utf-8")
+                error_content = chunk.body if isinstance(chunk.body, bytes) else (chunk.body or "")
+                yield openai_error_sse_bytes(
+                    error_content,
+                    status_code=chunk.status_code,
+                    default_message="Upstream Codex request failed",
                 )
-                yield error_content
+                yield "data: [DONE]\n\n".encode("utf-8")
                 return
 
             chunk_str = chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk

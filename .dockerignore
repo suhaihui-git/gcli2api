@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+data/
+creds/
+log.txt
+su2api.zip
+frontend/node_modules/
+frontend/.pnpm-store/
+frontend/.vite/
+frontend/package-lock.json
+frontend/_tmp_*

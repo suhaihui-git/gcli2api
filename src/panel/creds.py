@@ -7,6 +7,7 @@ import io
 import json
 import math
 import os
+import re
 import time
 import zipfile
 from typing import Any, Dict, List, Optional
@@ -39,6 +40,59 @@ def _normalize_tier(tier_value: str) -> str:
         return "pro"
     elif "free" in t:
         return "free"
+    return "free"
+
+
+def _sanitize_download_name(name: str) -> str:
+    """清理下载文件名中的非法字符"""
+    sanitized = re.sub(r'[<>:"/\\|?*]+', "_", name or "").strip().strip(".")
+    return sanitized or "credential"
+
+
+async def _build_credential_download_name(
+    storage_adapter,
+    filename: str,
+    mode: str,
+    credential_data: Optional[Dict[str, Any]] = None,
+    used_names: Optional[set[str]] = None,
+) -> str:
+    """为下载/导出生成展示文件名，不修改存储中的真实文件名"""
+    filename_only = os.path.basename(filename)
+    if mode not in ("geminicli", "antigravity"):
+        download_name = filename_only
+    else:
+        email = None
+        if credential_data:
+            email = credential_data.get("user_email") or credential_data.get("email")
+
+        if not email:
+            state = await storage_adapter.get_credential_state(filename_only, mode=mode)
+            if state:
+                email = state.get("user_email")
+
+        if email:
+            email_base = _sanitize_download_name(str(email).strip())
+            download_name = f"{email_base}.json"
+        else:
+            download_name = filename_only
+
+    if used_names is None:
+        return download_name
+
+    if download_name not in used_names:
+        used_names.add(download_name)
+        return download_name
+
+    stem, ext = os.path.splitext(download_name)
+    original_stem = _sanitize_download_name(os.path.splitext(filename_only)[0])
+    candidate = f"{stem}__{original_stem}{ext or '.json'}"
+    counter = 2
+    while candidate in used_names:
+        candidate = f"{stem}__{original_stem}_{counter}{ext or '.json'}"
+        counter += 1
+
+    used_names.add(candidate)
+    return candidate
     return "pro"
 
 
@@ -583,6 +637,7 @@ async def download_all_creds_common(mode: str = "geminicli") -> Response:
     log.info(f"开始打包 {len(credential_filenames)} 个 {mode} 凭证文件...")
 
     zip_buffer = io.BytesIO()
+    used_names: set[str] = set()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         success_count = 0
@@ -591,7 +646,14 @@ async def download_all_creds_common(mode: str = "geminicli") -> Response:
                 credential_data = await storage_adapter.get_credential(filename, mode=mode)
                 if credential_data:
                     content = json.dumps(credential_data, ensure_ascii=False, indent=2)
-                    zip_file.writestr(os.path.basename(filename), content)
+                    download_name = await _build_credential_download_name(
+                        storage_adapter,
+                        filename,
+                        mode,
+                        credential_data=credential_data,
+                        used_names=used_names,
+                    )
+                    zip_file.writestr(download_name, content)
                     success_count += 1
 
                     if idx % 10 == 0:
@@ -1211,13 +1273,19 @@ async def download_cred_file(
 
         # 转换为JSON字符串
         content = json.dumps(credential_data, ensure_ascii=False, indent=2)
+        download_name = await _build_credential_download_name(
+            storage_adapter,
+            filename,
+            mode,
+            credential_data=credential_data,
+        )
 
         from fastapi.responses import Response
 
         return Response(
             content=content,
             media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f"attachment; filename={download_name}"},
         )
 
     except HTTPException:

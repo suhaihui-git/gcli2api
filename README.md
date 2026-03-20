@@ -98,6 +98,7 @@
 - 系统配置管理
 - 使用统计和监控面板
 - 移动端适配界面
+- 新版 Vue 3 + Naive UI + Tailwind 单页控制台
 
 **批量操作支持**
 - ZIP 文件批量上传凭证（GCLI 和 Antigravity）
@@ -348,6 +349,17 @@ ghcr.io/YOUR_USERNAME/gemini-api-pool:latest
 - 上半部分：GCLI 凭证批量上传（蓝色主题）
 - 下半部分：Antigravity 凭证批量上传（绿色主题）
 - 各自独立的凭证管理标签页
+
+### 前端开发
+
+新版控制台源码位于 `frontend/`，生产构建产物输出到 `front/`。
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+pnpm build
+```
 
 ## 💾 数据存储模式
 

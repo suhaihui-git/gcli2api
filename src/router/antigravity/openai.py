@@ -16,12 +16,13 @@ import asyncio
 import json
 
 # 第三方库
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 
 # 本地模块 - 配置和日志
 from config import get_anti_truncation_max_attempts
 from log import log
+from src.openai_errors import openai_error_response, openai_error_sse_bytes
 
 # 本地模块 - 工具和认证
 from src.utils import (
@@ -130,7 +131,11 @@ async def chat_completions(
             gemini_response = json.loads(response_body)
         except Exception as e:
             log.error(f"Failed to parse Gemini response: {e}")
-            raise HTTPException(status_code=500, detail="Response parsing failed")
+            return openai_error_response(
+                "Response parsing failed",
+                status_code=500,
+                default_message="Response parsing failed",
+            )
 
         # 转换为 OpenAI 格式
         from src.converter.openai2gemini import convert_gemini_to_openai_response
@@ -197,19 +202,11 @@ async def chat_completions(
                 raw = response.content.decode('utf-8') if isinstance(response.content, bytes) else response.content
             error_body = raw or ""
 
-            try:
-                error_data = json.loads(error_body)
-                # 转换错误为 OpenAI 格式
-                from src.converter.openai2gemini import convert_gemini_to_openai_response
-                openai_error = convert_gemini_to_openai_response(
-                    error_data,
-                    real_model,
-                    response.status_code
-                )
-                yield f"data: {json.dumps(openai_error)}\n\n".encode()
-            except Exception:
-                # 如果无法解析为JSON，包装成错误对象
-                yield f"data: {json.dumps({'error': {'code': response.status_code, 'message': error_body or 'upstream error', 'status': 'ERROR'}})}\n\n".encode()
+            yield openai_error_sse_bytes(
+                error_body,
+                status_code=response.status_code,
+                default_message="Upstream Gemini request failed",
+            )
             yield "data: [DONE]\n\n".encode()
             return
 
@@ -255,19 +252,11 @@ async def chat_completions(
 
         except Exception as e:
             log.error(f"Response parsing failed: {e}, directly yield error")
-            # 构建错误响应
-            error_chunk = {
-                "id": "error",
-                "object": "chat.completion.chunk",
-                "created": int(asyncio.get_event_loop().time()),
-                "model": real_model,
-                "choices": [{
-                    "index": 0,
-                    "delta": {"content": f"Error: {str(e)}"},
-                    "finish_reason": "error"
-                }]
-            }
-            yield f"data: {json.dumps(error_chunk)}\n\n".encode()
+            yield openai_error_sse_bytes(
+                str(e),
+                status_code=500,
+                default_message="Response parsing failed",
+            )
 
         yield "data: [DONE]\n\n".encode()
 
@@ -353,19 +342,12 @@ async def chat_completions(
             # 检查是否是Response对象（错误情况）
             if isinstance(chunk, Response):
                 # 将Response转换为SSE格式的错误消息
-                try:
-                    error_content = chunk.body if isinstance(chunk.body, bytes) else (chunk.body or b'').encode('utf-8')
-                    gemini_error = json.loads(error_content.decode('utf-8'))
-                    # 转换为 OpenAI 格式错误
-                    from src.converter.openai2gemini import convert_gemini_to_openai_response
-                    openai_error = convert_gemini_to_openai_response(
-                        gemini_error,
-                        real_model,
-                        chunk.status_code
-                    )
-                    yield f"data: {json.dumps(openai_error)}\n\n".encode('utf-8')
-                except Exception:
-                    yield f"data: {json.dumps({'error': 'Stream error'})}\n\n".encode('utf-8')
+                error_content = chunk.body if isinstance(chunk.body, bytes) else (chunk.body or "")
+                yield openai_error_sse_bytes(
+                    error_content,
+                    status_code=chunk.status_code,
+                    default_message="Stream error",
+                )
                 yield b"data: [DONE]\n\n"
                 return
             else:
