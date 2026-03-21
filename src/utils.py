@@ -16,6 +16,7 @@ ANTIGRAVITY_USER_AGENT = "antigravity/2.15.8 (Windows; AMD64)"
 
 CODEX_USER_AGENT = "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
 CODEX_CLIENT_VERSION = "0.101.0"
+CLAUDE_USER_AGENT = "claude-cli/1.0"
 
 # OAuth Configuration - 标准模式
 CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
@@ -44,6 +45,14 @@ CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_SCOPES = "openid email profile offline_access"
 CODEX_REDIRECT_URI = "http://localhost:1455/auth/callback"
 CODEX_CALLBACK_PORT = 1455
+
+# Claude OAuth Configuration (Anthropic PKCE flow)
+CLAUDE_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+CLAUDE_AUTH_URL = "https://claude.ai/oauth/authorize"
+CLAUDE_TOKEN_URL = "https://api.anthropic.com/v1/oauth/token"
+CLAUDE_SCOPES = "org:create_api_key user:profile user:inference"
+CLAUDE_REDIRECT_URI = "http://localhost:54545/callback"
+CLAUDE_CALLBACK_PORT = 54545
 
 # 统一的 Token URL（两种模式相同）
 TOKEN_URL = "https://oauth2.googleapis.com/token"

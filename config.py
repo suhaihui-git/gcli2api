@@ -31,6 +31,7 @@ ENV_MAPPINGS = {
     "SERVICE_USAGE_API_URL": "service_usage_api_url",
     "ANTIGRAVITY_API_URL": "antigravity_api_url",
     "CODEX_API_URL": "codex_api_url",
+    "CLAUDE_API_URL": "claude_api_url",
     "AUTO_BAN": "auto_ban_enabled",
     "AUTO_BAN_ERROR_CODES": "auto_ban_error_codes",
     "RETRY_429_MAX_RETRIES": "retry_429_max_retries",
@@ -459,6 +460,25 @@ async def get_codex_api_url() -> str:
             "codex_api_url",
             "https://chatgpt.com/backend-api/codex",
             "CODEX_API_URL",
+        )
+    )
+
+
+async def get_claude_api_url() -> str:
+    """
+    Get Claude API URL setting.
+
+    用于 Anthropic Claude API 的 URL。
+
+    Environment variable: CLAUDE_API_URL
+    Database config key: claude_api_url
+    Default: https://api.anthropic.com
+    """
+    return str(
+        await get_config_value(
+            "claude_api_url",
+            "https://api.anthropic.com",
+            "CLAUDE_API_URL",
         )
     )
 

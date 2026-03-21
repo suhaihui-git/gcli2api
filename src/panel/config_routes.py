@@ -38,6 +38,7 @@ async def get_config(token: str = Depends(verify_panel_token)):
         current_config["resource_manager_api_url"] = await config.get_resource_manager_api_url()
         current_config["service_usage_api_url"] = await config.get_service_usage_api_url()
         current_config["antigravity_api_url"] = await config.get_antigravity_api_url()
+        current_config["claude_api_url"] = await config.get_claude_api_url()
 
         # 自动封禁配置
         current_config["auto_ban_enabled"] = await config.get_auto_ban_enabled()
@@ -146,6 +147,10 @@ async def save_config(request: ConfigSaveRequest, token: str = Depends(verify_pa
         if "keepalive_url" in new_config:
             if not isinstance(new_config["keepalive_url"], str):
                 raise HTTPException(status_code=400, detail="保活URL必须是字符串")
+
+        if "claude_api_url" in new_config:
+            if not isinstance(new_config["claude_api_url"], str):
+                raise HTTPException(status_code=400, detail="Claude API URL必须是字符串")
 
         if "keepalive_interval" in new_config:
             try:

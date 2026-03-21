@@ -1,4 +1,4 @@
-export type CredMode = "geminicli" | "antigravity" | "codex";
+export type CredMode = "geminicli" | "antigravity" | "codex" | "claude";
 export type StatusFilter = "all" | "enabled" | "disabled";
 export type CooldownFilter = "all" | "in_cooldown" | "no_cooldown";
 export type PreviewFilter = "all" | "preview" | "no_preview";

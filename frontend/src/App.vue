@@ -18,7 +18,16 @@
 </template>
 
 <script setup lang="ts">
-import { darkTheme, dateZhCN, zhCN } from "naive-ui";
+import {
+  NConfigProvider,
+  NDialogProvider,
+  NLoadingBarProvider,
+  NMessageProvider,
+  NNotificationProvider,
+  darkTheme,
+  dateZhCN,
+  zhCN,
+} from "naive-ui";
 import { computed, watchEffect } from "vue";
 
 import { createNaiveThemeOverrides } from "@/theme/naive";

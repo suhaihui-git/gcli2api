@@ -7,8 +7,11 @@
       <section v-else-if="activeTab === 'antigravity'" role="tabpanel" aria-label="Antigravity OAuth">
         <OAuthWorkbench mode="antigravity" title="Antigravity OAuth" />
       </section>
-      <section v-else role="tabpanel" aria-label="Codex OAuth">
+      <section v-else-if="activeTab === 'codex'" role="tabpanel" aria-label="Codex OAuth">
         <OAuthWorkbench mode="codex" title="Codex OAuth" />
+      </section>
+      <section v-else role="tabpanel" aria-label="Claude OAuth">
+        <OAuthWorkbench mode="claude" title="Claude OAuth" />
       </section>
     </segment-tabs>
   </app-layout>
@@ -29,6 +32,7 @@ const tabItems = [
   { label: "GeminiCLI", value: "geminicli" },
   { label: "Antigravity", value: "antigravity" },
   { label: "Codex", value: "codex" },
+  { label: "Claude", value: "claude" },
 ] as const;
 
 type OAuthTab = (typeof tabItems)[number]["value"];

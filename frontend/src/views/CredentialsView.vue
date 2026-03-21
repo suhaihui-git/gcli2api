@@ -3,13 +3,16 @@
     <div class="panel-shell panel-shell-tight">
       <segment-tabs v-model="activeTab" label="凭证模式" :items="tabItems">
         <section v-if="activeTab === 'geminicli'" role="tabpanel" aria-label="GeminiCLI">
-          <cred-manager mode="geminicli" />
+          <geminicli-cred-manager />
         </section>
         <section v-else-if="activeTab === 'antigravity'" role="tabpanel" aria-label="Antigravity">
-          <cred-manager mode="antigravity" />
+          <antigravity-cred-manager />
         </section>
-        <section v-else role="tabpanel" aria-label="Codex">
-          <cred-manager mode="codex" />
+        <section v-else-if="activeTab === 'codex'" role="tabpanel" aria-label="Codex">
+          <codex-cred-manager />
+        </section>
+        <section v-else role="tabpanel" aria-label="Claude">
+          <claude-cred-manager />
         </section>
       </segment-tabs>
     </div>
@@ -21,7 +24,10 @@ import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import SegmentTabs from "@/components/common/SegmentTabs.vue";
-import CredManager from "@/components/credentials/CredManager.vue";
+import AntigravityCredManager from "@/components/credentials/AntigravityCredManager.vue";
+import ClaudeCredManager from "@/components/credentials/ClaudeCredManager.vue";
+import CodexCredManager from "@/components/credentials/CodexCredManager.vue";
+import GeminicliCredManager from "@/components/credentials/GeminicliCredManager.vue";
 import AppLayout from "@/components/layout/AppLayout.vue";
 
 const route = useRoute();
@@ -31,6 +37,7 @@ const tabItems = [
   { label: "GeminiCLI", value: "geminicli" },
   { label: "Antigravity", value: "antigravity" },
   { label: "Codex", value: "codex" },
+  { label: "Claude", value: "claude" },
 ] as const;
 
 type CredentialsTab = (typeof tabItems)[number]["value"];

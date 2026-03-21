@@ -50,4 +50,41 @@ const message = createApiProxy("message");
 const dialog = createApiProxy("dialog");
 const notification = createApiProxy("notification");
 
-export { dialog, message, notification };
+interface ConfirmDialogOptions {
+  title: string;
+  content: string;
+  positiveText?: string;
+  negativeText?: string;
+  type?: "warning" | "error" | "info" | "success";
+}
+
+function confirmDialog(options: ConfirmDialogOptions) {
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+
+    const finish = (value: boolean) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    const variant = options.type ?? "warning";
+    const api = dialog[variant] as (config: Record<string, unknown>) => unknown;
+
+    api({
+      title: options.title,
+      content: options.content,
+      positiveText: options.positiveText ?? "确认",
+      negativeText: options.negativeText ?? "取消",
+      maskClosable: false,
+      closeOnEsc: false,
+      onPositiveClick: () => finish(true),
+      onNegativeClick: () => finish(false),
+      onClose: () => finish(false),
+    });
+  });
+}
+
+export { confirmDialog, dialog, message, notification };

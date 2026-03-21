@@ -4,6 +4,7 @@
     <div class="login-shell__glow login-shell__glow--right"></div>
     <div class="login-shell__grid">
       <section class="login-brand">
+        <img class="login-brand__mark" :src="siteIconUrl" alt="su2api icon" />
         <div class="login-brand__badge">su2api console</div>
         <h1 class="login-brand__title">统一代理控制台</h1>
         <p class="login-brand__description">
@@ -112,6 +113,7 @@ const router = useRouter();
 const password = ref("");
 const showPassword = ref(false);
 const submitting = ref(false);
+const siteIconUrl = "/front/favicon.svg";
 
 const redirectHint = computed(() => {
   const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
@@ -294,6 +296,18 @@ async function handleSubmit() {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--login-badge-text);
+}
+
+.login-brand__mark {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 78px;
+  height: 78px;
+  border-radius: 24px;
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .login-brand__title {
@@ -606,6 +620,12 @@ async function handleSubmit() {
 
   .login-brand__title {
     font-size: clamp(2.2rem, 13vw, 3.4rem);
+  }
+
+  .login-brand__mark {
+    width: 68px;
+    height: 68px;
+    border-radius: 20px;
   }
 
   .login-panel__header {

@@ -27,7 +27,7 @@ from src.api.antigravity import fetch_quota_info
 from src.api.codex import build_codex_headers, _extract_codex_creds
 from src.google_oauth_api import Credentials, fetch_project_id_and_tier
 from src.httpx_client import get_async
-from config import get_code_assist_endpoint, get_antigravity_api_url
+from config import get_auto_ban_error_codes, get_code_assist_endpoint, get_antigravity_api_url
 from .utils import validate_mode
 
 
@@ -47,6 +47,78 @@ def _sanitize_download_name(name: str) -> str:
     """清理下载文件名中的非法字符"""
     sanitized = re.sub(r'[<>:"/\\|?*]+', "_", name or "").strip().strip(".")
     return sanitized or "credential"
+
+
+def _extract_http_status_code_from_error(exc: Exception) -> Optional[int]:
+    """从异常中提取HTTP状态码"""
+    if isinstance(exc, HTTPException):
+        return exc.status_code
+
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    response = getattr(exc, "response", None)
+    response_status_code = getattr(response, "status_code", None)
+    if isinstance(response_status_code, int):
+        return response_status_code
+
+    error_text = str(exc or "")
+    match = re.search(r"\bHTTP\s*(\d{3})\b", error_text, re.IGNORECASE)
+    if not match:
+        match = re.search(r"\bstatus(?:\s*code)?\s*[:=]?\s*(\d{3})\b", error_text, re.IGNORECASE)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+async def _should_disable_verify_failure(status_code: Optional[int]) -> bool:
+    """校验失败后是否应自动禁用凭证"""
+    if status_code is None:
+        return False
+    if status_code in (400, 401, 403):
+        return True
+
+    try:
+        disable_error_codes = await get_auto_ban_error_codes()
+    except Exception:
+        disable_error_codes = [403]
+    return status_code in disable_error_codes
+
+
+async def _record_verify_failure_state(
+    filename: str,
+    mode: str,
+    storage_adapter,
+    exc: Exception,
+) -> Optional[int]:
+    """记录校验失败的错误码，并在需要时禁用凭证"""
+    status_code = _extract_http_status_code_from_error(exc)
+    if status_code is None:
+        return None
+
+    error_message = str(exc).strip() or f"HTTP {status_code}"
+    state_update = {
+        "error_codes": [status_code],
+        "error_messages": {str(status_code): error_message},
+    }
+
+    if await _should_disable_verify_failure(status_code):
+        state_update["disabled"] = True
+
+    try:
+        await storage_adapter.update_credential_state(filename, state_update, mode=mode)
+        log.warning(
+            f"已记录项目校验失败状态: {filename} (mode={mode}, status={status_code}, "
+            f"disabled={bool(state_update.get('disabled'))})"
+        )
+    except Exception as record_error:
+        log.error(f"记录项目校验失败状态失败 {filename}: {record_error}")
+
+    return status_code
 
 
 async def _build_credential_download_name(
@@ -488,6 +560,8 @@ async def upload_credentials_common(
                     await credential_manager.add_antigravity_credential(filename, credential_data)
                 elif mode == "codex":
                     await credential_manager.add_codex_credential(filename, credential_data)
+                elif mode == "claude":
+                    await credential_manager.add_claude_credential(filename, credential_data)
                 else:
                     await credential_manager.add_credential(filename, credential_data)
 
@@ -625,6 +699,8 @@ async def download_all_creds_common(mode: str = "geminicli") -> Response:
         if mode == "antigravity"
         else "codex_credentials.zip"
         if mode == "codex"
+        else "claude_credentials.zip"
+        if mode == "claude"
         else "credentials.zip"
     )
 
@@ -866,6 +942,9 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
     """验证并重新获取凭证的project id的通用函数"""
     mode = validate_mode(mode)
 
+    if mode in ("codex", "claude"):
+        raise HTTPException(status_code=400, detail=f"{mode} 模式不支持项目校验")
+
     # 验证文件名
     if not filename.endswith(".json"):
         raise HTTPException(status_code=400, detail="无效的文件名")
@@ -878,32 +957,40 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
     if not credential_data:
         raise HTTPException(status_code=404, detail="凭证不存在")
 
-    # 创建凭证对象
-    credentials = Credentials.from_dict(credential_data)
+    try:
+        # 创建凭证对象
+        credentials = Credentials.from_dict(credential_data)
 
-    # 确保token有效（自动刷新）
-    token_refreshed = await credentials.refresh_if_needed()
+        # 确保token有效（自动刷新）
+        token_refreshed = await credentials.refresh_if_needed()
 
-    # 如果token被刷新了，更新存储
-    if token_refreshed:
-        log.info(f"Token已自动刷新: {filename} (mode={mode})")
-        credential_data = credentials.to_dict()
-        await storage_adapter.store_credential(filename, credential_data, mode=mode)
+        # 如果token被刷新了，更新存储
+        if token_refreshed:
+            log.info(f"Token已自动刷新: {filename} (mode={mode})")
+            credential_data = credentials.to_dict()
+            await storage_adapter.store_credential(filename, credential_data, mode=mode)
 
-    # 获取API端点和对应的User-Agent
-    if mode == "antigravity":
-        api_base_url = await get_antigravity_api_url()
-        user_agent = ANTIGRAVITY_USER_AGENT
-    else:
-        api_base_url = await get_code_assist_endpoint()
-        user_agent = GEMINICLI_USER_AGENT
+        # 获取API端点和对应的User-Agent
+        if mode == "antigravity":
+            api_base_url = await get_antigravity_api_url()
+            user_agent = ANTIGRAVITY_USER_AGENT
+        else:
+            api_base_url = await get_code_assist_endpoint()
+            user_agent = GEMINICLI_USER_AGENT
 
-    # 重新获取project id
-    project_id, subscription_tier = await fetch_project_id_and_tier(
-        access_token=credentials.access_token,
-        user_agent=user_agent,
-        api_base_url=api_base_url
-    )
+        # 重新获取project id
+        project_id, subscription_tier = await fetch_project_id_and_tier(
+            access_token=credentials.access_token,
+            user_agent=user_agent,
+            api_base_url=api_base_url,
+            raise_on_http_error=True,
+        )
+    except Exception as e:
+        status_code = await _record_verify_failure_state(filename, mode, storage_adapter, e)
+        error_message = str(e).strip() or "项目校验失败"
+        if status_code is not None:
+            raise HTTPException(status_code=status_code, detail=error_message)
+        raise HTTPException(status_code=500, detail=error_message)
 
     if project_id:
         credential_data["project_id"] = project_id
@@ -916,7 +1003,8 @@ async def verify_credential_project_common(filename: str, mode: str = "geminicli
         # 检验成功后自动解除禁用状态并清除错误码
         state_update = {
             "disabled": False,
-            "error_codes": []
+            "error_codes": [],
+            "error_messages": {},
         }
 
         # 如果是 geminicli 模式，直接设置 preview=True
@@ -1697,6 +1785,30 @@ async def _ensure_codex_token(filename: str, credential_data: dict, storage_adap
     return credential_data
 
 
+async def _ensure_claude_token(filename: str, credential_data: dict, storage_adapter) -> dict:
+    """确保 Claude OAuth 凭证的 access_token 有效，必要时刷新"""
+    from datetime import datetime, timezone
+
+    if credential_data.get("api_key"):
+        return credential_data
+
+    expired_str = credential_data.get("expired")
+    if expired_str:
+        try:
+            expired_dt = datetime.fromisoformat(expired_str)
+            if expired_dt.tzinfo is None:
+                expired_dt = expired_dt.replace(tzinfo=timezone.utc)
+            if expired_dt <= datetime.now(timezone.utc):
+                log.info(f"Claude token已过期，尝试刷新: {filename}")
+                refreshed = await credential_manager._refresh_claude_token(credential_data, filename)
+                if refreshed:
+                    return refreshed
+                raise Exception("Claude token已过期且刷新失败")
+        except ValueError:
+            pass
+    return credential_data
+
+
 async def _test_codex_credential(filename: str, credential_data: dict, storage_adapter) -> JSONResponse:
     """使用Codex API测试凭证"""
     from config import get_codex_api_url
@@ -1839,6 +1951,145 @@ async def _chat_codex_credential(filename: str, credential_data: dict, storage_a
         )
 
 
+async def _test_claude_credential(filename: str, credential_data: dict, storage_adapter) -> JSONResponse:
+    """使用 Claude API 测试凭证"""
+    from config import get_claude_api_url
+    from src.api.claude import build_claude_headers, _extract_claude_creds
+    from src.httpx_client import post_async
+
+    credential_data = await _ensure_claude_token(filename, credential_data, storage_adapter)
+
+    api_key, access_token = _extract_claude_creds(credential_data)
+    if not api_key and not access_token:
+        raise HTTPException(status_code=400, detail="凭证中没有访问令牌或 API Key")
+
+    headers = build_claude_headers(
+        access_token=access_token,
+        api_key=api_key,
+        is_stream=False,
+    )
+
+    claude_api_url = await get_claude_api_url()
+    target_url = f"{claude_api_url.rstrip('/')}/v1/messages"
+
+    response = await post_async(
+        url=target_url,
+        json={
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 16,
+            "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
+        },
+        headers=headers,
+        timeout=30.0,
+    )
+
+    status_code = response.status_code
+
+    if status_code in (200, 429):
+        log.info(f"Claude凭证测试成功: {filename} (status={status_code})")
+        if status_code == 200:
+            await storage_adapter.update_credential_state(
+                filename,
+                {
+                    "error_codes": [],
+                    "error_messages": {},
+                },
+                mode="claude",
+            )
+
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "success": True,
+                "status_code": status_code,
+                "message": "测试成功",
+                "filename": filename,
+            },
+        )
+
+    error_text = response.text if hasattr(response, "text") else ""
+    log.warning(f"Claude凭证测试失败: {filename} (status={status_code})")
+    try:
+        await storage_adapter.update_credential_state(
+            filename,
+            {
+                "error_codes": [status_code],
+                "error_messages": {str(status_code): error_text or f"HTTP {status_code}"},
+            },
+            mode="claude",
+        )
+    except Exception as e:
+        log.error(f"保存Claude测试错误信息失败: {e}")
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "status_code": status_code,
+            "message": f"测试失败: HTTP {status_code}",
+            "error": error_text,
+            "filename": filename,
+        },
+    )
+
+
+async def _chat_claude_credential(
+    filename: str,
+    credential_data: dict,
+    storage_adapter,
+    model: str,
+    message: str,
+) -> JSONResponse:
+    """使用 Claude API 进行对话测试"""
+    from config import get_claude_api_url
+    from src.api.claude import build_claude_headers, _extract_claude_creds
+    from src.httpx_client import post_async
+
+    credential_data = await _ensure_claude_token(filename, credential_data, storage_adapter)
+
+    api_key, access_token = _extract_claude_creds(credential_data)
+    if not api_key and not access_token:
+        raise HTTPException(status_code=400, detail="凭证中没有访问令牌或 API Key")
+
+    headers = build_claude_headers(
+        access_token=access_token,
+        api_key=api_key,
+        is_stream=False,
+    )
+
+    claude_api_url = await get_claude_api_url()
+    target_url = f"{claude_api_url.rstrip('/')}/v1/messages"
+
+    response = await post_async(
+        url=target_url,
+        json={
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": [{"type": "text", "text": message}]}],
+        },
+        headers=headers,
+        timeout=60.0,
+    )
+
+    status_code = response.status_code
+    if status_code == 200:
+        try:
+            data = response.json()
+            text = ""
+            for block in data.get("content", []) or []:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text += block.get("text", "")
+            return JSONResponse(content={"success": True, "text": text})
+        except Exception as e:
+            log.error(f"[Claude Chat] 解析响应失败: {e}, raw: {response.text[:500]}")
+            return JSONResponse(content={"success": True, "text": response.text})
+
+    return JSONResponse(
+        status_code=status_code,
+        content={"success": False, "error": response.text},
+    )
+
+
 @router.get("/codex-usage/{filename}")
 async def get_codex_credential_usage(
     filename: str,
@@ -1924,9 +2175,11 @@ async def test_credential(
         if not credential_data:
             raise HTTPException(status_code=404, detail="凭证不存在")
 
-        # Codex 模式：使用 Codex API 测试
+        # Codex / Claude 模式：使用对应上游测试
         if mode == "codex":
             return await _test_codex_credential(filename, credential_data, storage_adapter)
+        if mode == "claude":
+            return await _test_claude_credential(filename, credential_data, storage_adapter)
 
         # 创建凭证对象并尝试刷新 token（如果需要）
         credentials = Credentials.from_dict(credential_data)
@@ -2121,9 +2374,11 @@ async def chat_with_credential(
         if not credential_data:
             raise HTTPException(status_code=404, detail="凭证不存在")
 
-        # Codex 模式：使用 Codex API 对话
+        # Codex / Claude 模式：使用对应上游对话
         if mode == "codex":
             return await _chat_codex_credential(filename, credential_data, storage_adapter, model, message)
+        if mode == "claude":
+            return await _chat_claude_credential(filename, credential_data, storage_adapter, model, message)
 
         credentials = Credentials.from_dict(credential_data)
         token_refreshed = await credentials.refresh_if_needed()

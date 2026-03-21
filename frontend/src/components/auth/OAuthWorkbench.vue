@@ -8,7 +8,7 @@
         <div class="surface-panel rounded-2xl px-4 py-4">
           <p class="text-xs uppercase tracking-[0.24em] app-text-muted">Step 1</p>
           <p class="mt-2 text-base font-semibold app-text-strong">生成授权链接</p>
-          <p class="mt-2 text-sm app-text-muted">如已知项目 ID 可直接填写，否则让后端自动探测。</p>
+          <p class="mt-2 text-sm app-text-muted">{{ stepOneDescription }}</p>
         </div>
         <div class="surface-panel rounded-2xl px-4 py-4">
           <p class="text-xs uppercase tracking-[0.24em] app-text-muted">Step 2</p>
@@ -22,7 +22,7 @@
         </div>
       </div>
 
-      <n-form>
+      <n-form v-if="needsProjectId">
         <n-form-item label="项目 ID（可选）">
           <n-input
             v-model:value="projectId"
@@ -32,8 +32,8 @@
       </n-form>
 
       <div class="flex flex-wrap gap-2">
-        <n-button class="app-primary-button w-full sm:w-auto" type="primary" :loading="starting" @click="handleStart">获取认证链接</n-button>
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary :loading="finishing" @click="handleFinish">拉取认证结果</n-button>
+        <n-button class="w-full sm:w-auto" type="primary" :loading="starting" @click="handleStart">获取认证链接</n-button>
+        <n-button class="w-full sm:w-auto" secondary :loading="finishing" @click="handleFinish">拉取认证结果</n-button>
       </div>
 
       <n-alert v-if="authUrl" type="info" title="认证链接已生成">
@@ -42,7 +42,7 @@
             {{ authUrl }}
           </a>
           <div>
-            <n-button class="app-primary-button w-full sm:w-auto" tag="a" :href="authUrl" target="_blank" type="primary">
+            <n-button class="w-full sm:w-auto" tag="a" :href="authUrl" target="_blank" type="primary">
               打开授权页面
             </n-button>
           </div>
@@ -60,13 +60,13 @@
             :autosize="{ minRows: 3, maxRows: 6 }"
             placeholder="如果浏览器跳回 localhost 回调地址失败，可把完整回调 URL 粘贴到这里"
           />
-          <n-button class="app-toolbar-button w-full sm:w-auto" secondary :loading="callbackFinishing" @click="handleCallbackUrl">
+          <n-button class="w-full sm:w-auto" secondary :loading="callbackFinishing" @click="handleCallbackUrl">
             从回调 URL 完成认证
           </n-button>
         </div>
       </div>
 
-      <div v-if="availableProjects.length > 0" class="panel-embedded">
+      <div v-if="needsProjectId && availableProjects.length > 0" class="panel-embedded">
         <div class="panel-header">
           <div class="panel-title">候选项目</div>
         </div>
@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { NAlert, NButton, NForm, NFormItem, NInput, NSelect } from "naive-ui";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
 import { finishAuth, finishAuthWithCallbackUrl, startAuth } from "@/api/auth";
 import type { AuthCallbackResponse, AuthProject, CredMode } from "@/api/types";
@@ -113,11 +113,24 @@ const availableProjects = ref<AuthProject[]>([]);
 const starting = ref(false);
 const finishing = ref(false);
 const callbackFinishing = ref(false);
+const needsProjectId = computed(() => props.mode === "geminicli");
+const stepOneDescription = computed(() =>
+  needsProjectId.value
+    ? "如已知项目 ID 可直接填写，否则让后端自动探测。"
+    : "当前渠道不需要项目 ID，直接生成授权链接即可。",
+);
+
+function normalizedProjectId() {
+  if (!needsProjectId.value) {
+    return undefined;
+  }
+  return projectId.value.trim() || undefined;
+}
 
 async function handleStart() {
   starting.value = true;
   try {
-    const result = await startAuth(props.mode, projectId.value.trim() || undefined);
+    const result = await startAuth(props.mode, normalizedProjectId());
     authUrl.value = result.auth_url;
     availableProjects.value = [];
     resultText.value = prettyJson(result);
@@ -132,7 +145,7 @@ async function handleStart() {
 async function handleFinish() {
   finishing.value = true;
   try {
-    const result = await finishAuth(props.mode, projectId.value.trim() || undefined);
+    const result = await finishAuth(props.mode, normalizedProjectId());
     handleAuthResponse(result);
   } catch (error) {
     message.error(getErrorMessage(error));
@@ -152,7 +165,7 @@ async function handleCallbackUrl() {
     const result = await finishAuthWithCallbackUrl(
       props.mode,
       callbackUrl.value.trim(),
-      projectId.value.trim() || undefined,
+      normalizedProjectId(),
     );
     handleAuthResponse(result);
   } catch (error) {
@@ -171,13 +184,13 @@ function handleAuthResponse(result: AuthCallbackResponse) {
     return;
   }
 
-  if (result.requires_project_selection && result.available_projects) {
+  if (needsProjectId.value && result.requires_project_selection && result.available_projects) {
     availableProjects.value = result.available_projects;
     message.warning("请选择项目后再次拉取认证结果");
     return;
   }
 
-  if (result.requires_manual_project_id) {
+  if (needsProjectId.value && result.requires_manual_project_id) {
     message.warning("后端需要手动项目 ID，请填写后重试");
     return;
   }

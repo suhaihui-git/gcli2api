@@ -36,6 +36,9 @@ from src.router.codex.openai import router as codex_openai_router
 from src.router.codex.anthropic import router as codex_anthropic_router
 from src.router.codex.responses import router as codex_responses_router
 from src.router.codex.model_list import router as codex_model_list_router
+from src.router.claude.openai import router as claude_openai_router
+from src.router.claude.anthropic import router as claude_anthropic_router
+from src.router.claude.model_list import router as claude_model_list_router
 from src.task_manager import shutdown_all_tasks
 from src.panel import router as panel_router
 from src.keeplive import keepalive_service
@@ -188,6 +191,11 @@ app.include_router(codex_anthropic_router, prefix="", tags=["Codex Anthropic Mes
 app.include_router(codex_responses_router, prefix="", tags=["Codex Responses API"])
 app.include_router(codex_model_list_router, prefix="", tags=["Codex Model List"])
 
+# Claude 路由 - 通过 Anthropic Claude Messages API 转发
+app.include_router(claude_openai_router, prefix="", tags=["Claude OpenAI API"])
+app.include_router(claude_anthropic_router, prefix="", tags=["Claude Anthropic Messages"])
+app.include_router(claude_model_list_router, prefix="", tags=["Claude Model List"])
+
 # Panel路由 - 包含认证、凭证管理和控制面板功能
 app.include_router(panel_router, prefix="", tags=["Panel Interface"])
 
@@ -219,6 +227,8 @@ async def main():
     log.info(f"   Codex (OpenAI格式): http://127.0.0.1:{port}/codex/v1")
     log.info(f"   Codex (Claude格式): http://127.0.0.1:{port}/codex/v1")
     log.info(f"   Codex (Responses格式): http://127.0.0.1:{port}/codex/v1")
+    log.info(f"   Claude (OpenAI格式): http://127.0.0.1:{port}/claude/v1")
+    log.info(f"   Claude (Claude格式): http://127.0.0.1:{port}/claude/v1")
 
     # 配置hypercorn
     config = Config()

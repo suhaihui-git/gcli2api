@@ -33,6 +33,21 @@ export function createNaiveThemeOverrides(isDark: boolean): GlobalThemeOverrides
   const mutedText = isDark ? "#cbd5e1" : "#475569";
   const quietText = isDark ? "#94a3b8" : "#64748b";
   const focusRing = isDark ? "0 0 0 3px rgba(59,130,246,0.18)" : "0 0 0 3px rgba(59,130,246,0.12)";
+  const videoAccent = "#fb7299";
+  const videoAccentPressed = "#f65b89";
+  const videoAccentTint = isDark ? "rgba(251, 114, 153, 0.14)" : "rgba(251, 114, 153, 0.08)";
+  const videoAccentTintStrong = isDark
+    ? "rgba(251, 114, 153, 0.18)"
+    : "rgba(251, 114, 153, 0.12)";
+  const videoAccentBorderHover = isDark
+    ? `1px solid rgba(255, 138, 176, 0.58)`
+    : `1px solid rgba(251, 114, 153, 0.46)`;
+  const videoAccentBorderFocus = isDark
+    ? `1px solid rgba(251, 114, 153, 0.76)`
+    : `1px solid rgba(246, 91, 137, 0.66)`;
+  const videoAccentFocusRing = isDark
+    ? "0 0 0 3px rgba(251, 114, 153, 0.22)"
+    : "0 0 0 3px rgba(251, 114, 153, 0.16)";
 
   return {
     common: {
@@ -92,15 +107,17 @@ export function createNaiveThemeOverrides(isDark: boolean): GlobalThemeOverrides
       fontWeightStrong: "600",
     },
     Input: {
-      borderRadius: "16px",
+      borderRadius: "20px",
       color: isDark ? "rgba(15, 23, 42, 0.92)" : "rgba(255,255,255,0.96)",
       colorFocus: isDark ? "rgba(15, 23, 42, 0.96)" : "#ffffff",
+      colorFocusWarning: isDark ? "rgba(15, 23, 42, 0.96)" : "#ffffff",
+      colorFocusError: isDark ? "rgba(15, 23, 42, 0.96)" : "#ffffff",
       colorDisabled: subtleSurfaceDisabled,
       textColor: bodyText,
       textColorDisabled: quietText,
       placeholderColor: quietText,
       placeholderColorDisabled: quietText,
-      caretColor: "#60a5fa",
+      caretColor: videoAccent,
       iconColor: quietText,
       iconColorHover: mutedText,
       iconColorPressed: strongText,
@@ -113,27 +130,50 @@ export function createNaiveThemeOverrides(isDark: boolean): GlobalThemeOverrides
       groupLabelTextColor: mutedText,
       suffixTextColor: mutedText,
       border: border,
-      borderHover: borderHover,
+      borderHover: videoAccentBorderHover,
       borderDisabled: borderDisabled,
-      borderFocus: borderFocus,
-      boxShadowFocus: focusRing,
+      borderFocus: videoAccentBorderFocus,
+      boxShadowFocus: videoAccentFocusRing,
     },
     Select: {
-      borderRadius: "16px",
-      color: isDark ? "rgba(15, 23, 42, 0.92)" : "rgba(255,255,255,0.96)",
-      colorActive: isDark ? "rgba(15, 23, 42, 0.96)" : "#ffffff",
-      colorDisabled: subtleSurfaceDisabled,
-      textColor: bodyText,
-      placeholderColor: quietText,
-      arrowColor: quietText,
-      arrowColorDisabled: quietText,
-      clearColor: quietText,
-      clearColorHover: mutedText,
-      clearColorPressed: strongText,
-      border: border,
-      borderHover: borderHover,
-      borderActive: borderFocus,
       menuBoxShadow: isDark ? "0 24px 60px rgba(2, 6, 23, 0.5)" : "0 18px 42px rgba(15, 23, 42, 0.12)",
+      peers: {
+        InternalSelection: {
+          borderRadius: "20px",
+          color: isDark ? "rgba(15, 23, 42, 0.92)" : "rgba(255,255,255,0.96)",
+          colorDisabled: subtleSurfaceDisabled,
+          colorActive: isDark
+            ? "color-mix(in srgb, rgba(15, 23, 42, 0.96) 88%, rgba(251, 114, 153, 0.18) 12%)"
+            : videoAccentTint,
+          textColor: bodyText,
+          textColorDisabled: quietText,
+          placeholderColor: quietText,
+          placeholderColorDisabled: quietText,
+          border: border,
+          borderHover: videoAccentBorderHover,
+          borderActive: videoAccentBorderFocus,
+          borderFocus: videoAccentBorderFocus,
+          boxShadowHover: "none",
+          boxShadowActive: videoAccentFocusRing,
+          boxShadowFocus: videoAccentFocusRing,
+          caretColor: videoAccent,
+          arrowColor: quietText,
+          arrowColorDisabled: quietText,
+          loadingColor: videoAccent,
+          clearColor: quietText,
+          clearColorHover: videoAccentPressed,
+          clearColorPressed: videoAccentPressed,
+          colorActiveWarning: videoAccentTintStrong,
+          colorActiveError: videoAccentTintStrong,
+          caretColorWarning: videoAccent,
+          caretColorError: videoAccent,
+        },
+        InternalSelectMenu: {
+          borderRadius: "18px",
+          optionColorActive: videoAccentTintStrong,
+          optionColorActivePending: videoAccentTintStrong,
+        },
+      },
     },
     Card: {
       borderRadius: "24px",

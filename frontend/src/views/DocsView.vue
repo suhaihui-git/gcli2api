@@ -14,7 +14,7 @@
             <h3 class="mt-4 text-3xl font-semibold">统一接入说明</h3>
             <p class="app-contrast-copy mt-3 text-sm leading-7">
               控制台负责维护凭证；真正给下游系统对接时，请按这里的认证方式、端点路径和请求格式接入。
-              文档按 GeminiCLI、Antigravity、Codex 与控制台接口四组来组织，方便你从原有 OpenAI、Gemini、
+              文档按 GeminiCLI、Antigravity、Codex、Claude 与控制台接口五组来组织，方便你从原有 OpenAI、Gemini、
               Claude 或 Responses 客户端平滑迁移。
             </p>
           </div>
@@ -37,13 +37,15 @@
         </div>
       </div>
 
-      <n-grid cols="1 s:1 m:2 xl:4" responsive="screen" x-gap="16" y-gap="16">
-        <n-grid-item v-for="group in endpointGroups" :key="group.title">
-          <div class="panel-shell h-full">
-            <div class="panel-header">
-              <div>
-                <div class="panel-title">{{ group.title }}</div>
-                <p class="panel-desc">{{ group.desc }}</p>
+      <div class="space-y-4">
+        <div v-for="group in endpointGroups" :key="group.title" class="panel-shell">
+          <div class="doc-group-layout">
+            <div class="doc-group-meta">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">{{ group.title }}</div>
+                  <p class="panel-desc">{{ group.desc }}</p>
+                </div>
               </div>
             </div>
             <div class="space-y-3">
@@ -52,18 +54,18 @@
                 :key="`${group.title}-${item.path}`"
                 class="surface-panel rounded-2xl px-4 py-4"
               >
-                <div class="flex items-center justify-between gap-3">
+                <div class="doc-endpoint-row">
                   <n-tag :bordered="false" round :type="resolveMethodTag(item.method)">
                     {{ item.method }}
                   </n-tag>
-                  <span class="text-xs app-text-muted">{{ item.desc }}</span>
+                  <p class="doc-endpoint-path">{{ item.path }}</p>
+                  <span class="doc-endpoint-desc">{{ item.desc }}</span>
                 </div>
-                <p class="mt-3 break-all text-sm font-medium app-text-strong">{{ item.path }}</p>
               </div>
             </div>
           </div>
-        </n-grid-item>
-      </n-grid>
+        </div>
+      </div>
 
       <n-grid cols="1 s:1 m:2" responsive="screen" x-gap="16" y-gap="16">
         <n-grid-item v-for="card in formatCards" :key="card.title">
@@ -78,9 +80,12 @@
               <div
                 v-for="line in card.points"
                 :key="line"
-                class="surface-panel rounded-2xl px-4 py-3 text-sm leading-7 app-text-muted"
+                class="surface-panel rounded-2xl px-4 py-3"
               >
-                {{ line }}
+                <div class="doc-inline-point">
+                  <span class="doc-inline-dot"></span>
+                  <span class="text-sm leading-7 app-text-muted">{{ line }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -109,7 +114,7 @@
             </div>
             <div class="space-y-3">
               <p class="text-sm leading-7 app-text-muted">{{ feature.desc }}</p>
-              <div class="space-y-2">
+              <div class="flex flex-wrap gap-2">
                 <div
                   v-for="item in feature.items"
                   :key="item"
@@ -123,7 +128,7 @@
         </n-grid-item>
       </n-grid>
 
-      <n-grid cols="1 s:1 m:3" responsive="screen" x-gap="16" y-gap="16">
+      <n-grid cols="1 s:1 m:2 xl:4" responsive="screen" x-gap="16" y-gap="16">
         <n-grid-item v-for="card in modelCards" :key="card.title">
           <div class="panel-shell h-full">
             <div class="panel-header">
@@ -132,7 +137,7 @@
                 <p class="panel-desc">{{ card.desc }}</p>
               </div>
             </div>
-            <div class="space-y-2">
+            <div class="flex flex-wrap gap-2">
               <div
                 v-for="item in card.items"
                 :key="item"
@@ -152,31 +157,35 @@
             <p class="panel-desc">这部分用于管理前端自身，不是给下游模型客户端直接调用的推理接口。</p>
           </div>
         </div>
-        <div class="grid gap-4 xl:grid-cols-4">
+        <div class="space-y-4">
           <div
             v-for="section in panelSections"
             :key="section.title"
             class="panel-embedded"
           >
-            <div class="panel-header">
-              <div>
-                <div class="panel-title">{{ section.title }}</div>
-                <p class="panel-desc">{{ section.desc }}</p>
-              </div>
-            </div>
-            <div class="space-y-3">
-              <div
-                v-for="item in section.items"
-                :key="item.path"
-                class="surface-panel rounded-2xl px-4 py-4"
-              >
-                <div class="flex items-center justify-between gap-3">
-                  <n-tag :bordered="false" round :type="resolveMethodTag(item.method)">
-                    {{ item.method }}
-                  </n-tag>
-                  <span class="text-xs app-text-muted">{{ item.desc }}</span>
+            <div class="doc-group-layout">
+              <div class="doc-group-meta">
+                <div class="panel-header">
+                  <div>
+                    <div class="panel-title">{{ section.title }}</div>
+                    <p class="panel-desc">{{ section.desc }}</p>
+                  </div>
                 </div>
-                <p class="mt-3 break-all text-sm font-medium app-text-strong">{{ item.path }}</p>
+              </div>
+              <div class="space-y-3">
+                <div
+                  v-for="item in section.items"
+                  :key="item.path"
+                  class="surface-panel rounded-2xl px-4 py-4"
+                >
+                  <div class="doc-endpoint-row">
+                    <n-tag :bordered="false" round :type="resolveMethodTag(item.method)">
+                      {{ item.method }}
+                    </n-tag>
+                    <p class="doc-endpoint-path">{{ item.path }}</p>
+                    <span class="doc-endpoint-desc">{{ item.desc }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -235,6 +244,16 @@ const endpointGroups = [
     ],
   },
   {
+    title: "Claude",
+    desc: "Anthropic 原生通道，支持 Claude Messages、OpenAI Chat 兼容和 token 计数。",
+    items: [
+      { method: "POST", path: "/claude/v1/chat/completions", desc: "OpenAI Chat" },
+      { method: "POST", path: "/claude/v1/messages", desc: "Claude Messages" },
+      { method: "POST", path: "/claude/v1/messages/count_tokens", desc: "Token 计数" },
+      { method: "GET", path: "/claude/v1/models", desc: "模型列表" },
+    ],
+  },
+  {
     title: "控制台",
     desc: "管理前端和面板接口，用于登录、凭证管理、配置和日志。",
     items: [
@@ -255,6 +274,7 @@ const formatCards = [
       "GeminiCLI 的 /v1/chat/completions 支持标准 OpenAI messages，也能自动识别并处理 Gemini 原生 body。",
       "Antigravity 的 /antigravity/v1/chat/completions 同样支持 OpenAI 风格请求，适合 Claude/Gemini 混合模型。",
       "Codex 的 /codex/v1/chat/completions 支持 GPT-5、o 系列等 OpenAI 模型，并兼容 stream、tools、tool_choice 等常见字段。",
+      "Claude 的 /claude/v1/chat/completions 面向 OpenAI SDK，底层转发到 Anthropic Messages API。",
     ],
   },
   {
@@ -271,7 +291,8 @@ const formatCards = [
     desc: "适合 Claude Code、Anthropic SDK 或已按 Claude 协议开发的客户端。",
     points: [
       "/v1/messages、/antigravity/v1/messages 和 /codex/v1/messages 都支持 Claude Messages 风格 body。",
-      "GCLI 和 Antigravity 通道支持 system 字段；Codex 通道还支持 thinking、tool_use / tool_result 和 web_search 映射。",
+      "/claude/v1/messages 是原生 Anthropic 通道，并额外提供 /claude/v1/messages/count_tokens。",
+      "GCLI 和 Antigravity 通道支持 system 字段；Codex 与 Claude 通道支持 tool_use / tool_result 等工具链路。",
       "Claude 风格请求可用 x-api-key、Authorization Bearer，也兼容 anthropic 风格头部。",
     ],
   },
@@ -282,6 +303,15 @@ const formatCards = [
       "/codex/v1/responses 会近似直通转发到 Codex 上游，只做必要的字段清理和兼容处理。",
       "string input 会自动标准化成 message 结构；system role 会被转换为 developer role。",
       "会删除 Codex 上游已知不兼容字段，如 max_output_tokens、temperature、top_p、truncation 等。",
+    ],
+  },
+  {
+    title: "Claude 原生通道",
+    desc: "适合 Anthropic SDK、Claude Code 风格客户端或需要 count_tokens 的场景。",
+    points: [
+      "/claude/v1/messages 直连 Anthropic Messages API，保留 Claude 工具调用与消息块结构。",
+      "/claude/v1/messages/count_tokens 可在正式发送前估算输入 token，适合预算或限额控制。",
+      "Claude 通道同时提供 /claude/v1/chat/completions，方便复用 OpenAI 风格客户端。",
     ],
   },
 ] as const;
@@ -349,6 +379,21 @@ const examples = [
   "stream": true
 }'`,
   },
+  {
+    title: "Claude 通道示例",
+    desc: "Anthropic 原生 Messages + count_tokens 能力。",
+    code: `curl -X POST "http://127.0.0.1:7861/claude/v1/messages" \\
+-H "x-api-key: your_api_password" \\
+-H "anthropic-version: 2023-06-01" \\
+-H "Content-Type: application/json" \\
+-d '{
+  "model": "claude-sonnet-4-5",
+  "max_tokens": 1024,
+  "messages": [
+    {"role": "user", "content": [{"type": "text", "text": "Hello"}]}
+  ]
+}'`,
+  },
 ] as const;
 
 const featureCards = [
@@ -381,6 +426,7 @@ const featureCards = [
     desc: "支持 OpenAI tools 和 Claude tool_use/tool_result 两种风格。",
     items: [
       "Codex 通道支持 function tools 和 tool_choice。",
+      "Claude 通道保留 Anthropic 原生工具块，并兼容 OpenAI tools 映射。",
       "Claude 风格工具块会自动映射到 Codex 上游。",
     ],
   },
@@ -417,6 +463,17 @@ const modelCards = [
       "gpt-5.1-codex-max",
     ],
   },
+  {
+    title: "Claude 常用模型",
+    desc: "以 /claude/v1/models 返回为准，适合 Anthropic 原生与 OpenAI 兼容两种接法。",
+    items: [
+      "claude-3-5-haiku-latest",
+      "claude-3-5-sonnet-latest",
+      "claude-3-7-sonnet-latest",
+      "claude-sonnet-4-5",
+      "claude-opus-4-1",
+    ],
+  },
 ] as const;
 
 const panelSections = [
@@ -433,7 +490,7 @@ const panelSections = [
   },
   {
     title: "凭证管理",
-    desc: "支持 mode=geminicli / antigravity / codex。",
+    desc: "支持 mode=geminicli / antigravity / codex / claude。",
     items: [
       { method: "POST", path: "/creds/upload", desc: "上传 JSON / ZIP" },
       { method: "GET", path: "/creds/status", desc: "分页筛选列表" },
@@ -473,7 +530,7 @@ const panelSections = [
     items: [
       { method: "INFO", path: "OpenAI 端点返回 OpenAI 格式", desc: "Gemini / Antigravity / Codex" },
       { method: "INFO", path: "Gemini 端点返回 Gemini 原生格式", desc: "适配原生 SDK" },
-      { method: "INFO", path: "Claude 端点返回 Claude Messages 格式", desc: "适配 Claude 客户端" },
+      { method: "INFO", path: "Claude 端点返回 Claude Messages 格式", desc: "适配 Anthropic / Claude 客户端" },
       { method: "INFO", path: "兼容性模式会把 system 转成 user", desc: "提高部分客户端兼容性" },
     ],
   },
@@ -492,3 +549,72 @@ function resolveMethodTag(method: string) {
   return "success";
 }
 </script>
+
+<style scoped>
+.doc-group-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.doc-group-meta {
+  min-width: 0;
+}
+
+.doc-endpoint-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-endpoint-path {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.65;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--strong-text);
+}
+
+.doc-endpoint-desc {
+  font-size: 0.75rem;
+  color: var(--muted-text);
+  white-space: nowrap;
+}
+
+.doc-inline-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.doc-inline-dot {
+  margin-top: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-text) 72%, transparent);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .doc-endpoint-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: flex-start;
+  }
+
+  .doc-endpoint-desc {
+    grid-column: 2 / 3;
+    white-space: normal;
+  }
+}
+
+@media (min-width: 1100px) {
+  .doc-group-layout {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+</style>

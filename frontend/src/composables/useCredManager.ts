@@ -101,8 +101,8 @@ export function useCredManager(mode: CredMode) {
         status_filter: filters.status,
         error_code_filter: filters.errorCode,
         cooldown_filter: filters.cooldown,
-        preview_filter: filters.preview,
-        tier_filter: filters.tier,
+        preview_filter: mode === "geminicli" ? filters.preview : "all",
+        tier_filter: mode === "geminicli" || mode === "antigravity" ? filters.tier : "all",
       });
 
       items.value = data.items;
@@ -125,7 +125,11 @@ export function useCredManager(mode: CredMode) {
     }
   }
 
-  async function withRefresh(task: () => Promise<unknown>, successMessage?: string) {
+  async function withRefresh(
+    task: () => Promise<unknown>,
+    successMessage?: string,
+    options?: { refreshOnError?: boolean },
+  ) {
     working.value = true;
     try {
       await task();
@@ -134,6 +138,13 @@ export function useCredManager(mode: CredMode) {
       }
       await load();
     } catch (error) {
+      if (options?.refreshOnError) {
+        try {
+          await load();
+        } catch {
+          // keep the original error as the primary signal
+        }
+      }
       message.error(getErrorMessage(error));
       throw error;
     } finally {
@@ -236,6 +247,8 @@ export function useCredManager(mode: CredMode) {
           ? "antigravity_credentials.zip"
           : mode === "codex"
             ? "codex_credentials.zip"
+            : mode === "claude"
+              ? "claude_credentials.zip"
             : "credentials.zip";
       saveBlob(blob, filename);
       message.success("已开始下载全部凭证");
@@ -436,14 +449,23 @@ export function useCredManager(mode: CredMode) {
   }
 
   async function verifyProject(filename: string) {
-    if (mode === "codex") {
+    if (mode === "codex" || mode === "claude") {
       return;
     }
-    await withRefresh(() => verifyCredentialProject(mode, filename), "项目检验完成");
+    delete errors[filename];
+    try {
+      await withRefresh(
+        () => verifyCredentialProject(mode, filename),
+        "项目检验完成",
+        { refreshOnError: true },
+      );
+    } catch {
+      // keep UI responsive for button actions; error toast already shown above
+    }
   }
 
   async function batchVerifyProject() {
-    if (mode === "codex") {
+    if (mode === "codex" || mode === "claude") {
       return;
     }
     if (selected.value.length === 0) {
@@ -597,6 +619,14 @@ export function useCredManager(mode: CredMode) {
     return chatWithCredential(mode, filename, model, input);
   }
 
+  function resetFilters() {
+    filters.status = "all";
+    filters.errorCode = "all";
+    filters.cooldown = "all";
+    filters.preview = "all";
+    filters.tier = "all";
+  }
+
   return {
     items,
     loading,
@@ -647,5 +677,6 @@ export function useCredManager(mode: CredMode) {
     batchConfigurePreview,
     runTest,
     sendChat,
+    resetFilters,
   };
 }

@@ -11,6 +11,7 @@ from log import log
 
 from src.google_oauth_api import Credentials
 from src.storage_adapter import get_storage_adapter
+from src.utils import CLAUDE_CLIENT_ID, CLAUDE_TOKEN_URL
 
 class CredentialManager:
     """
@@ -128,6 +129,15 @@ class CredentialManager:
         await self._storage_adapter.store_credential(credential_name, credential_data, mode="codex")
         log.info(f"Codex credential added/updated: {credential_name}")
 
+    async def add_claude_credential(self, credential_name: str, credential_data: Dict[str, Any]):
+        """
+        新增或更新一个 Claude 凭证
+        存储层会自动处理轮换顺序
+        """
+        await self._ensure_initialized()
+        await self._storage_adapter.store_credential(credential_name, credential_data, mode="claude")
+        log.info(f"Claude credential added/updated: {credential_name}")
+
     async def remove_credential(self, credential_name: str, mode: str = "geminicli") -> bool:
         """删除一个凭证"""
         await self._ensure_initialized()
@@ -222,8 +232,8 @@ class CredentialManager:
             if not credential_data:
                 return None
 
-            # Codex凭证直接从JSON中读取email字段
-            if mode == "codex":
+            # 第三方 OAuth 凭证直接从 JSON 中读取邮箱字段
+            if mode in ("codex", "claude"):
                 email = credential_data.get("email")
                 if email:
                     # 缓存邮箱地址
@@ -333,6 +343,10 @@ class CredentialManager:
     async def _should_refresh_token(self, credential_data: Dict[str, Any]) -> bool:
         """检查token是否需要刷新"""
         try:
+            # API Key 凭证无需刷新
+            if credential_data.get("api_key"):
+                return False
+
             # 如果没有access_token或过期时间，需要刷新
             if not credential_data.get("access_token") and not credential_data.get("token"):
                 log.debug("没有access_token，需要刷新")
@@ -395,6 +409,8 @@ class CredentialManager:
             # Codex 凭证使用 OpenAI OAuth 刷新
             if mode == "codex":
                 return await self._refresh_codex_token(credential_data, filename)
+            if mode == "claude":
+                return await self._refresh_claude_token(credential_data, filename)
 
             # 创建Credentials对象 (Google OAuth)
             creds = Credentials.from_dict(credential_data)
@@ -582,6 +598,94 @@ class CredentialManager:
                     log.error(f"禁用永久失效Codex凭证时出错 {filename}: {e2}")
             else:
                 log.warning(f"Codex token刷新失败但非永久性错误，不封禁凭证: {filename}")
+
+            return None
+
+    async def _refresh_claude_token(
+        self, credential_data: Dict[str, Any], filename: str
+    ) -> Optional[Dict[str, Any]]:
+        """刷新 Claude (Anthropic) token"""
+        from datetime import timedelta
+        from src.httpx_client import post_async
+
+        # API Key 模式无需刷新
+        if credential_data.get("api_key"):
+            return credential_data
+
+        refresh_token = credential_data.get("refresh_token")
+        if not refresh_token:
+            log.error(f"Claude凭证没有refresh_token，无法刷新: {filename}")
+            try:
+                await self.update_credential_state(filename, {"disabled": True}, mode="claude")
+                log.warning(f"Claude凭证已自动禁用（缺少refresh_token）: {filename}")
+            except Exception as e:
+                log.error(f"禁用Claude凭证失败 {filename}: {e}")
+            return None
+
+        try:
+            log.debug(f"正在刷新Claude token: {filename}")
+            response = await post_async(
+                CLAUDE_TOKEN_URL,
+                json={
+                    "client_id": CLAUDE_CLIENT_ID,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            token_data = response.json()
+
+            if token_data.get("access_token"):
+                credential_data["access_token"] = token_data["access_token"]
+            if token_data.get("refresh_token"):
+                credential_data["refresh_token"] = token_data["refresh_token"]
+
+            account = token_data.get("account") or {}
+            email = account.get("email_address") or token_data.get("email")
+            if email:
+                credential_data["email"] = email
+
+            organization = token_data.get("organization")
+            if isinstance(organization, dict):
+                if organization.get("uuid"):
+                    credential_data["organization_id"] = organization.get("uuid")
+                if organization.get("name"):
+                    credential_data["organization_name"] = organization.get("name")
+
+            if "expires_in" in token_data:
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(token_data["expires_in"]))
+                credential_data["expired"] = expires_at.isoformat()
+
+            credential_data["last_refresh"] = datetime.now(timezone.utc).isoformat()
+
+            await self._storage_adapter.store_credential(filename, credential_data, mode="claude")
+            log.info(f"Claude token刷新成功并已保存: {filename}")
+            return credential_data
+
+        except Exception as e:
+            error_msg = str(e)
+            log.error(f"Claude token刷新失败 {filename}: {error_msg}")
+
+            status_code = None
+            if hasattr(e, "response") and hasattr(e.response, "status_code"):
+                status_code = e.response.status_code
+
+            is_permanent = self._is_permanent_refresh_failure(error_msg, status_code)
+            if is_permanent:
+                log.warning(f"Claude凭证永久失效 (HTTP {status_code}): {filename}")
+                await self.record_api_call_result(filename, False, status_code or 400, mode="claude")
+                try:
+                    await self.update_credential_state(filename, {"disabled": True}, mode="claude")
+                    log.warning(f"永久失效Claude凭证已禁用: {filename}")
+                except Exception as e2:
+                    log.error(f"禁用永久失效Claude凭证时出错 {filename}: {e2}")
+            else:
+                log.warning(f"Claude token刷新失败但非永久性错误，不封禁凭证: {filename}")
 
             return None
 

@@ -19,8 +19,8 @@
                 {{ summary.user_email || summary.filename }}
               </h3>
               <status-pill :disabled="summary.disabled" />
-              <tier-pill :tier="summary.tier" />
-              <n-tag class="app-neutral-tag" size="small" round :bordered="false" type="default">
+              <tier-pill v-if="showTierPill" :tier="summary.tier" />
+              <n-tag size="small" round :bordered="false" type="default">
                 {{ modeLabel }}
               </n-tag>
               <n-tag
@@ -43,7 +43,6 @@
               </n-tag>
               <n-tag
                 v-if="mode === 'codex' && usage?.used_percent !== null && usage?.used_percent !== undefined"
-                class="app-neutral-tag"
                 size="small"
                 round
                 :bordered="false"
@@ -90,7 +89,6 @@
               </n-tag>
               <n-tag
                 v-if="overflowErrorCount > 0"
-                class="app-neutral-tag"
                 size="small"
                 round
                 :bordered="false"
@@ -115,7 +113,6 @@
               </n-tag>
               <n-tag
                 v-if="overflowCooldownCount > 0"
-                class="app-neutral-tag"
                 size="small"
                 round
                 :bordered="false"
@@ -135,13 +132,12 @@
           size="tiny"
           secondary
           class="cred-action-button"
-          :class="[
-            button.tone === 'accent' ? 'cred-action-button--accent' : '',
-            button.tone === 'warning' ? 'cred-action-button--warning' : '',
-            button.tone === 'danger' ? 'cred-action-button--danger' : '',
-          ]"
+          :class="resolveActionButtonClass(button)"
           @click="handleActionClick(button.key)"
         >
+          <template #icon>
+            <app-icon :name="resolveActionButtonIcon(button.key)" />
+          </template>
           {{ button.label }}
         </n-button>
       </div>
@@ -190,6 +186,7 @@ import type {
   CredentialQuotaResponse,
   CredentialSummary,
 } from "@/api/types";
+import AppIcon from "@/components/common/AppIcon.vue";
 import StatusPill from "@/components/common/StatusPill.vue";
 import TierPill from "@/components/common/TierPill.vue";
 import { formatCooldown, formatPercent, formatTimestamp, prettyJson } from "@/utils/format";
@@ -266,11 +263,18 @@ const modeLabel = computed(() => {
   if (props.mode === "codex") {
     return "Codex 凭证";
   }
+  if (props.mode === "claude") {
+    return "Claude 凭证";
+  }
   if (props.mode === "antigravity") {
     return "Antigravity 凭证";
   }
   return "GeminiCLI 凭证";
 });
+
+const showTierPill = computed(
+  () => props.mode === "geminicli" || props.mode === "antigravity",
+);
 
 const lastUsedText = computed(() => formatTimestamp(props.summary.last_success));
 
@@ -284,7 +288,7 @@ const actionButtons = computed<ActionButtonConfig[]>(() => {
     { key: "chat", label: "对话", tone: "accent" },
   ];
 
-  if (props.mode !== "codex") {
+  if (props.mode !== "codex" && props.mode !== "claude") {
     buttons.push({ key: "verify", label: "校验", tone: "default" });
   }
 
@@ -366,6 +370,60 @@ function handleActionClick(key: ActionButtonKey) {
       break;
   }
 }
+
+function resolveActionButtonClass(button: ActionButtonConfig) {
+  const classes = [`cred-action-button--${button.key}`];
+
+  if (button.key === "toggle") {
+    classes.push(
+      props.summary.disabled
+        ? "cred-action-button--toggle-enable"
+        : "cred-action-button--toggle-disable",
+    );
+  }
+
+  if (button.key === "quota" && props.quotaOpen) {
+    classes.push("cred-action-button--active");
+  }
+
+  if (button.key === "usage-toggle" && props.usageOpen) {
+    classes.push("cred-action-button--active");
+  }
+
+  return classes;
+}
+
+function resolveActionButtonIcon(key: ActionButtonKey) {
+  switch (key) {
+    case "detail":
+      return "file";
+    case "errors":
+      return "alert";
+    case "download":
+      return "download";
+    case "email":
+      return "mail";
+    case "test":
+      return "pulse";
+    case "chat":
+      return "chat";
+    case "verify":
+      return "shield";
+    case "preview":
+      return "sparkles";
+    case "quota":
+    case "usage-query":
+      return "wallet";
+    case "usage-toggle":
+      return "eye";
+    case "toggle":
+      return props.summary.disabled ? "check" : "ban";
+    case "delete":
+      return "trash";
+    default:
+      return "grid";
+  }
+}
 </script>
 
 <style scoped>
@@ -376,10 +434,24 @@ function handleActionClick(key: ActionButtonKey) {
   gap: 12px;
   border-radius: 24px;
   padding: 14px 14px 12px;
+  border-color: color-mix(in srgb, var(--field-border) 84%, var(--panel-border) 16%);
+  background: color-mix(in srgb, var(--soft-surface) 94%, var(--field-bg-strong) 6%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--panel-border) 68%, transparent),
+    0 12px 24px rgba(15, 23, 42, 0.08);
   transition:
+    background 0.18s ease,
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     transform 0.18s ease;
+}
+
+body.theme-dark .cred-card {
+  border-color: rgba(100, 116, 139, 0.34);
+  background: color-mix(in srgb, var(--soft-surface) 96%, black 4%);
+  box-shadow:
+    inset 0 0 0 1px rgba(148, 163, 184, 0.12),
+    0 16px 28px rgba(2, 6, 23, 0.24);
 }
 
 .cred-card::before {
@@ -393,33 +465,12 @@ function handleActionClick(key: ActionButtonKey) {
 }
 
 .cred-card--disabled::before {
-  background: linear-gradient(180deg, rgba(251, 146, 60, 0.96), rgba(245, 158, 11, 0.62));
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(148, 163, 184, 0.56));
+  opacity: 0.82;
 }
 
 .cred-card--disabled {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--soft-surface) 84%, rgba(245, 158, 11, 0.12) 16%),
-      color-mix(in srgb, var(--soft-surface) 92%, rgba(245, 158, 11, 0.04) 8%)
-    );
-  border-color: color-mix(in srgb, var(--warning-accent) 42%, var(--panel-border) 58%);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--warning-accent) 18%, transparent),
-    0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-body.theme-dark .cred-card--disabled {
-  background: linear-gradient(
-    135deg,
-    rgba(44, 28, 15, 0.96),
-    rgba(32, 26, 20, 0.94) 34%,
-    color-mix(in srgb, var(--soft-surface) 84%, rgba(245, 158, 11, 0.18) 16%)
-  );
-  border-color: rgba(245, 158, 11, 0.34);
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 191, 36, 0.14),
-    0 14px 28px rgba(2, 6, 23, 0.18);
+  border-color: color-mix(in srgb, var(--panel-border) 88%, rgba(148, 163, 184, 0.22) 12%);
 }
 
 .cred-card--disabled::after {
@@ -427,96 +478,19 @@ body.theme-dark .cred-card--disabled {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(245, 158, 11, 0.08) 0,
-      rgba(245, 158, 11, 0.08) 10px,
-      rgba(255, 255, 255, 0) 10px,
-      rgba(255, 255, 255, 0) 20px
-    );
-  opacity: 0.6;
+  background: rgba(148, 163, 184, 0.16);
   pointer-events: none;
+  z-index: 3;
 }
 
 body.theme-dark .cred-card--disabled::after {
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(251, 191, 36, 0.08) 0,
-      rgba(251, 191, 36, 0.08) 10px,
-      rgba(255, 255, 255, 0) 10px,
-      rgba(255, 255, 255, 0) 20px
-    );
-  opacity: 0.75;
-}
-
-.cred-card--disabled .cred-card__title {
-  color: color-mix(in srgb, var(--strong-text) 88%, var(--warning-accent) 12%);
-}
-
-.cred-card--disabled .cred-card__filename,
-.cred-card--disabled .cred-card__meta-item {
-  color: color-mix(in srgb, var(--muted-text) 84%, var(--warning-accent) 16%);
-}
-
-.cred-card--disabled .cred-card__identity {
-  padding-top: 14px;
-}
-
-.cred-card--disabled .cred-card__layout::after {
-  content: "已禁用";
-  position: absolute;
-  top: -16px;
-  left: -34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 74px;
-  height: 30px;
-  padding: 0 14px 0 22px;
-  border-radius: 16px 0 16px 0;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.94), rgba(251, 191, 36, 0.9));
-  color: #fff7ed;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.2);
-  pointer-events: none;
-  z-index: 2;
-}
-
-body.theme-dark .cred-card--disabled .cred-card__layout::after {
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.96), rgba(245, 158, 11, 0.92));
-  color: #fffbeb;
-  box-shadow: 0 10px 22px rgba(120, 53, 15, 0.28);
-}
-
-.cred-card--disabled .cred-card__actions {
-  filter: saturate(0.82);
-}
-
-.cred-card--disabled .cred-action-button:not(.cred-action-button--accent) {
-  --n-color: color-mix(in srgb, var(--field-bg) 82%, rgba(245, 158, 11, 0.08) 18%) !important;
-  --n-color-hover: color-mix(in srgb, var(--field-bg) 78%, rgba(245, 158, 11, 0.12) 22%) !important;
-  --n-color-pressed: color-mix(in srgb, var(--field-bg) 88%, rgba(245, 158, 11, 0.12) 12%) !important;
-  --n-color-focus: color-mix(in srgb, var(--field-bg) 78%, rgba(245, 158, 11, 0.12) 22%) !important;
-  --n-border: 1px solid color-mix(in srgb, var(--warning-accent) 20%, var(--field-border) 80%) !important;
-  --n-border-hover: 1px solid color-mix(in srgb, var(--warning-accent) 32%, var(--field-border) 68%) !important;
-}
-
-body.theme-dark .cred-card--disabled .cred-action-button:not(.cred-action-button--accent) {
-  --n-color: rgba(49, 36, 23, 0.86) !important;
-  --n-color-hover: rgba(67, 47, 27, 0.92) !important;
-  --n-color-pressed: rgba(42, 31, 21, 0.94) !important;
-  --n-color-focus: rgba(67, 47, 27, 0.92) !important;
-  --n-border: 1px solid rgba(245, 158, 11, 0.16) !important;
-  --n-border-hover: 1px solid rgba(245, 158, 11, 0.3) !important;
+  background: rgba(100, 116, 139, 0.22);
 }
 
 .cred-card--selected {
   border-color: color-mix(in srgb, var(--field-border-strong) 100%, transparent);
   box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--field-border-strong) 34%, transparent),
     0 18px 34px rgba(15, 23, 42, 0.12),
     inset 0 1px 0 color-mix(in srgb, var(--field-border-strong) 18%, transparent);
 }
@@ -613,85 +587,252 @@ body.theme-dark .cred-card--disabled .cred-action-button:not(.cred-action-button
 
 .cred-action-button {
   width: 100%;
-  min-height: 30px;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.74rem;
-  letter-spacing: 0.01em;
-  --n-color: color-mix(in srgb, var(--soft-surface) 88%, white 16%) !important;
-  --n-color-hover: color-mix(in srgb, var(--soft-surface) 82%, white 22%) !important;
-  --n-color-pressed: color-mix(in srgb, var(--soft-surface) 92%, black 8%) !important;
-  --n-color-focus: color-mix(in srgb, var(--soft-surface) 82%, white 22%) !important;
   --n-text-color: var(--strong-text) !important;
   --n-text-color-hover: var(--strong-text) !important;
   --n-text-color-pressed: var(--strong-text) !important;
   --n-text-color-focus: var(--strong-text) !important;
-  --n-border: 1px solid color-mix(in srgb, var(--field-border) 100%, transparent) !important;
-  --n-border-hover: 1px solid color-mix(in srgb, var(--field-border-strong) 100%, transparent) !important;
-  --n-border-pressed: 1px solid color-mix(in srgb, var(--field-border-strong) 100%, transparent) !important;
-  --n-border-focus: 1px solid color-mix(in srgb, var(--field-border-strong) 100%, transparent) !important;
+  --n-border-radius: 14px !important;
+  --n-border: 1px solid transparent !important;
+  --n-border-hover: 1px solid transparent !important;
+  --n-border-pressed: 1px solid transparent !important;
+  --n-border-focus: 1px solid transparent !important;
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--panel-border) 42%, transparent),
-    0 8px 18px rgba(15, 23, 42, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
-:global(body.theme-dark) .cred-card .cred-action-button {
-  --n-color: rgba(38, 52, 74, 0.96) !important;
-  --n-color-hover: rgba(56, 73, 98, 0.98) !important;
-  --n-color-pressed: rgba(32, 46, 67, 0.98) !important;
-  --n-color-focus: rgba(56, 73, 98, 0.98) !important;
-  --n-border: 1px solid rgba(96, 165, 250, 0.18) !important;
-  --n-border-hover: 1px solid rgba(96, 165, 250, 0.42) !important;
-  --n-border-pressed: 1px solid rgba(96, 165, 250, 0.42) !important;
-  --n-border-focus: 1px solid rgba(96, 165, 250, 0.42) !important;
+body.theme-dark .cred-action-button {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 10px 20px rgba(2, 6, 23, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 18px rgba(2, 6, 23, 0.22);
 }
 
-.cred-action-button--accent {
-  --n-color: color-mix(in srgb, var(--primary-accent-soft) 100%, white 4%) !important;
-  --n-color-hover: color-mix(in srgb, var(--primary-accent-soft) 100%, white 10%) !important;
-  --n-color-pressed: color-mix(in srgb, var(--primary-accent-soft) 100%, black 8%) !important;
-  --n-color-focus: color-mix(in srgb, var(--primary-accent-soft) 100%, white 10%) !important;
-  --n-text-color: var(--strong-text) !important;
-  --n-text-color-hover: var(--strong-text) !important;
-  --n-text-color-pressed: var(--strong-text) !important;
-  --n-text-color-focus: var(--strong-text) !important;
-  --n-border: 1px solid var(--primary-accent-border) !important;
-  --n-border-hover: 1px solid color-mix(in srgb, var(--primary-accent-border) 100%, white 10%) !important;
-  --n-border-pressed: 1px solid color-mix(in srgb, var(--primary-accent-border) 100%, black 10%) !important;
-  --n-border-focus: 1px solid color-mix(in srgb, var(--primary-accent-border) 100%, white 10%) !important;
+.cred-action-button--active {
+  filter: saturate(1.08) brightness(1.02);
 }
 
-.cred-action-button--warning {
-  --n-color: rgba(245, 158, 11, 0.12) !important;
-  --n-color-hover: rgba(245, 158, 11, 0.18) !important;
-  --n-color-pressed: rgba(245, 158, 11, 0.24) !important;
-  --n-color-focus: rgba(245, 158, 11, 0.18) !important;
-  --n-text-color: #f59e0b !important;
-  --n-text-color-hover: #fbbf24 !important;
-  --n-text-color-pressed: #fbbf24 !important;
-  --n-text-color-focus: #fbbf24 !important;
-  --n-border: 1px solid rgba(245, 158, 11, 0.32) !important;
-  --n-border-hover: 1px solid rgba(251, 191, 36, 0.46) !important;
-  --n-border-pressed: 1px solid rgba(251, 191, 36, 0.56) !important;
-  --n-border-focus: 1px solid rgba(251, 191, 36, 0.46) !important;
+.cred-action-button--detail {
+  --n-color: rgba(56, 189, 248, 0.16) !important;
+  --n-color-hover: rgba(56, 189, 248, 0.22) !important;
+  --n-color-pressed: rgba(56, 189, 248, 0.28) !important;
+  --n-color-focus: rgba(56, 189, 248, 0.22) !important;
+  --n-border: 1px solid rgba(56, 189, 248, 0.28) !important;
+  --n-border-hover: 1px solid rgba(56, 189, 248, 0.42) !important;
 }
 
-.cred-action-button--danger {
-  --n-color: rgba(244, 63, 94, 0.08) !important;
-  --n-color-hover: rgba(244, 63, 94, 0.14) !important;
-  --n-color-pressed: rgba(244, 63, 94, 0.2) !important;
-  --n-color-focus: rgba(244, 63, 94, 0.14) !important;
-  --n-text-color: #fb7185 !important;
-  --n-text-color-hover: #ffe4e6 !important;
-  --n-text-color-pressed: #ffe4e6 !important;
-  --n-text-color-focus: #ffe4e6 !important;
-  --n-border: 1px solid rgba(244, 63, 94, 0.34) !important;
-  --n-border-hover: 1px solid rgba(251, 113, 133, 0.5) !important;
-  --n-border-pressed: 1px solid rgba(251, 113, 133, 0.58) !important;
-  --n-border-focus: 1px solid rgba(251, 113, 133, 0.5) !important;
+.cred-action-button--errors {
+  --n-color: rgba(251, 113, 133, 0.14) !important;
+  --n-color-hover: rgba(251, 113, 133, 0.2) !important;
+  --n-color-pressed: rgba(251, 113, 133, 0.26) !important;
+  --n-color-focus: rgba(251, 113, 133, 0.2) !important;
+  --n-border: 1px solid rgba(251, 113, 133, 0.3) !important;
+  --n-border-hover: 1px solid rgba(251, 113, 133, 0.44) !important;
+}
+
+.cred-action-button--download {
+  --n-color: rgba(99, 102, 241, 0.13) !important;
+  --n-color-hover: rgba(99, 102, 241, 0.19) !important;
+  --n-color-pressed: rgba(99, 102, 241, 0.26) !important;
+  --n-color-focus: rgba(99, 102, 241, 0.19) !important;
+  --n-border: 1px solid rgba(99, 102, 241, 0.26) !important;
+  --n-border-hover: 1px solid rgba(99, 102, 241, 0.4) !important;
+}
+
+.cred-action-button--email {
+  --n-color: rgba(16, 185, 129, 0.13) !important;
+  --n-color-hover: rgba(16, 185, 129, 0.19) !important;
+  --n-color-pressed: rgba(16, 185, 129, 0.25) !important;
+  --n-color-focus: rgba(16, 185, 129, 0.19) !important;
+  --n-border: 1px solid rgba(16, 185, 129, 0.26) !important;
+  --n-border-hover: 1px solid rgba(16, 185, 129, 0.38) !important;
+}
+
+.cred-action-button--test {
+  --n-color: rgba(14, 165, 233, 0.18) !important;
+  --n-color-hover: rgba(14, 165, 233, 0.24) !important;
+  --n-color-pressed: rgba(14, 165, 233, 0.31) !important;
+  --n-color-focus: rgba(14, 165, 233, 0.24) !important;
+  --n-border: 1px solid rgba(14, 165, 233, 0.3) !important;
+  --n-border-hover: 1px solid rgba(14, 165, 233, 0.44) !important;
+}
+
+.cred-action-button--chat {
+  --n-color: rgba(168, 85, 247, 0.16) !important;
+  --n-color-hover: rgba(168, 85, 247, 0.22) !important;
+  --n-color-pressed: rgba(168, 85, 247, 0.29) !important;
+  --n-color-focus: rgba(168, 85, 247, 0.22) !important;
+  --n-border: 1px solid rgba(168, 85, 247, 0.3) !important;
+  --n-border-hover: 1px solid rgba(168, 85, 247, 0.44) !important;
+}
+
+.cred-action-button--verify {
+  --n-color: rgba(245, 158, 11, 0.14) !important;
+  --n-color-hover: rgba(245, 158, 11, 0.2) !important;
+  --n-color-pressed: rgba(245, 158, 11, 0.27) !important;
+  --n-color-focus: rgba(245, 158, 11, 0.2) !important;
+  --n-border: 1px solid rgba(245, 158, 11, 0.28) !important;
+  --n-border-hover: 1px solid rgba(245, 158, 11, 0.42) !important;
+}
+
+.cred-action-button--preview {
+  --n-color: rgba(6, 182, 212, 0.15) !important;
+  --n-color-hover: rgba(6, 182, 212, 0.22) !important;
+  --n-color-pressed: rgba(6, 182, 212, 0.28) !important;
+  --n-color-focus: rgba(6, 182, 212, 0.22) !important;
+  --n-border: 1px solid rgba(6, 182, 212, 0.28) !important;
+  --n-border-hover: 1px solid rgba(6, 182, 212, 0.42) !important;
+}
+
+.cred-action-button--quota {
+  --n-color: rgba(34, 197, 94, 0.14) !important;
+  --n-color-hover: rgba(34, 197, 94, 0.2) !important;
+  --n-color-pressed: rgba(34, 197, 94, 0.26) !important;
+  --n-color-focus: rgba(34, 197, 94, 0.2) !important;
+  --n-border: 1px solid rgba(34, 197, 94, 0.28) !important;
+  --n-border-hover: 1px solid rgba(34, 197, 94, 0.42) !important;
+}
+
+.cred-action-button--usage-query {
+  --n-color: rgba(249, 115, 22, 0.15) !important;
+  --n-color-hover: rgba(249, 115, 22, 0.21) !important;
+  --n-color-pressed: rgba(249, 115, 22, 0.28) !important;
+  --n-color-focus: rgba(249, 115, 22, 0.21) !important;
+  --n-border: 1px solid rgba(249, 115, 22, 0.29) !important;
+  --n-border-hover: 1px solid rgba(249, 115, 22, 0.42) !important;
+}
+
+.cred-action-button--usage-toggle {
+  --n-color: rgba(59, 130, 246, 0.15) !important;
+  --n-color-hover: rgba(59, 130, 246, 0.22) !important;
+  --n-color-pressed: rgba(59, 130, 246, 0.28) !important;
+  --n-color-focus: rgba(59, 130, 246, 0.22) !important;
+  --n-border: 1px solid rgba(59, 130, 246, 0.29) !important;
+  --n-border-hover: 1px solid rgba(59, 130, 246, 0.42) !important;
+}
+
+.cred-action-button--toggle-enable {
+  --n-color: rgba(34, 197, 94, 0.18) !important;
+  --n-color-hover: rgba(34, 197, 94, 0.25) !important;
+  --n-color-pressed: rgba(34, 197, 94, 0.32) !important;
+  --n-color-focus: rgba(34, 197, 94, 0.25) !important;
+  --n-border: 1px solid rgba(34, 197, 94, 0.32) !important;
+  --n-border-hover: 1px solid rgba(34, 197, 94, 0.46) !important;
+}
+
+.cred-action-button--toggle-disable {
+  --n-color: rgba(245, 158, 11, 0.16) !important;
+  --n-color-hover: rgba(245, 158, 11, 0.22) !important;
+  --n-color-pressed: rgba(245, 158, 11, 0.3) !important;
+  --n-color-focus: rgba(245, 158, 11, 0.22) !important;
+  --n-border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  --n-border-hover: 1px solid rgba(245, 158, 11, 0.44) !important;
+}
+
+.cred-action-button--delete {
+  --n-color: rgba(239, 68, 68, 0.15) !important;
+  --n-color-hover: rgba(239, 68, 68, 0.22) !important;
+  --n-color-pressed: rgba(239, 68, 68, 0.29) !important;
+  --n-color-focus: rgba(239, 68, 68, 0.22) !important;
+  --n-border: 1px solid rgba(239, 68, 68, 0.32) !important;
+  --n-border-hover: 1px solid rgba(239, 68, 68, 0.46) !important;
+}
+
+body.theme-dark .cred-action-button--detail {
+  --n-color: rgba(12, 74, 110, 0.84) !important;
+  --n-color-hover: rgba(14, 116, 144, 0.92) !important;
+  --n-color-pressed: rgba(8, 64, 92, 0.96) !important;
+  --n-color-focus: rgba(14, 116, 144, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--errors {
+  --n-color: rgba(136, 19, 55, 0.82) !important;
+  --n-color-hover: rgba(159, 18, 57, 0.9) !important;
+  --n-color-pressed: rgba(123, 18, 51, 0.94) !important;
+  --n-color-focus: rgba(159, 18, 57, 0.9) !important;
+}
+
+body.theme-dark .cred-action-button--download {
+  --n-color: rgba(49, 46, 129, 0.82) !important;
+  --n-color-hover: rgba(67, 56, 202, 0.9) !important;
+  --n-color-pressed: rgba(55, 48, 163, 0.94) !important;
+  --n-color-focus: rgba(67, 56, 202, 0.9) !important;
+}
+
+body.theme-dark .cred-action-button--email {
+  --n-color: rgba(6, 95, 70, 0.82) !important;
+  --n-color-hover: rgba(5, 150, 105, 0.9) !important;
+  --n-color-pressed: rgba(4, 120, 87, 0.94) !important;
+  --n-color-focus: rgba(5, 150, 105, 0.9) !important;
+}
+
+body.theme-dark .cred-action-button--test {
+  --n-color: rgba(3, 105, 161, 0.84) !important;
+  --n-color-hover: rgba(2, 132, 199, 0.92) !important;
+  --n-color-pressed: rgba(7, 89, 133, 0.96) !important;
+  --n-color-focus: rgba(2, 132, 199, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--chat {
+  --n-color: rgba(91, 33, 182, 0.84) !important;
+  --n-color-hover: rgba(109, 40, 217, 0.92) !important;
+  --n-color-pressed: rgba(76, 29, 149, 0.96) !important;
+  --n-color-focus: rgba(109, 40, 217, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--verify {
+  --n-color: rgba(146, 64, 14, 0.84) !important;
+  --n-color-hover: rgba(180, 83, 9, 0.92) !important;
+  --n-color-pressed: rgba(124, 45, 18, 0.96) !important;
+  --n-color-focus: rgba(180, 83, 9, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--preview {
+  --n-color: rgba(14, 116, 144, 0.84) !important;
+  --n-color-hover: rgba(8, 145, 178, 0.92) !important;
+  --n-color-pressed: rgba(21, 94, 117, 0.96) !important;
+  --n-color-focus: rgba(8, 145, 178, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--quota {
+  --n-color: rgba(22, 101, 52, 0.84) !important;
+  --n-color-hover: rgba(21, 128, 61, 0.92) !important;
+  --n-color-pressed: rgba(20, 83, 45, 0.96) !important;
+  --n-color-focus: rgba(21, 128, 61, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--usage-query {
+  --n-color: rgba(154, 52, 18, 0.84) !important;
+  --n-color-hover: rgba(194, 65, 12, 0.92) !important;
+  --n-color-pressed: rgba(124, 45, 18, 0.96) !important;
+  --n-color-focus: rgba(194, 65, 12, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--usage-toggle {
+  --n-color: rgba(30, 64, 175, 0.84) !important;
+  --n-color-hover: rgba(37, 99, 235, 0.92) !important;
+  --n-color-pressed: rgba(30, 58, 138, 0.96) !important;
+  --n-color-focus: rgba(37, 99, 235, 0.92) !important;
+}
+
+body.theme-dark .cred-action-button--toggle-enable {
+  --n-color: rgba(21, 128, 61, 0.86) !important;
+  --n-color-hover: rgba(22, 163, 74, 0.94) !important;
+  --n-color-pressed: rgba(20, 83, 45, 0.96) !important;
+  --n-color-focus: rgba(22, 163, 74, 0.94) !important;
+}
+
+body.theme-dark .cred-action-button--toggle-disable {
+  --n-color: rgba(161, 98, 7, 0.86) !important;
+  --n-color-hover: rgba(202, 138, 4, 0.94) !important;
+  --n-color-pressed: rgba(120, 53, 15, 0.96) !important;
+  --n-color-focus: rgba(202, 138, 4, 0.94) !important;
+}
+
+body.theme-dark .cred-action-button--delete {
+  --n-color: rgba(153, 27, 27, 0.86) !important;
+  --n-color-hover: rgba(220, 38, 38, 0.94) !important;
+  --n-color-pressed: rgba(127, 29, 29, 0.96) !important;
+  --n-color-focus: rgba(220, 38, 38, 0.94) !important;
 }
 
 .cred-card__expansion {

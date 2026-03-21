@@ -24,6 +24,7 @@ class MongoDBManager:
         "user_email",
         "model_cooldowns",
         "preview",
+        "tier",
         "usage_status_code",
         "usage_ok",
         "usage_used_percent",
@@ -107,6 +108,7 @@ class MongoDBManager:
 
         credentials_collection = self._db["credentials"]
         antigravity_credentials_collection = self._db["antigravity_credentials"]
+        claude_credentials_collection = self._db["claude_credentials"]
 
         # ===== Geminicli 凭证索引 =====
         geminicli_indexes = [
@@ -153,10 +155,22 @@ class MongoDBManager:
             IndexModel([("user_email", ASCENDING)], name="idx_user_email"),
         ]
 
+        # ===== Claude 凭证索引 =====
+        claude_indexes = [
+            IndexModel([("filename", ASCENDING)], unique=True, name="idx_filename_unique"),
+            IndexModel(
+                [("disabled", ASCENDING), ("rotation_order", ASCENDING)],
+                name="idx_disabled_rotation"
+            ),
+            IndexModel([("error_codes", ASCENDING)], name="idx_error_codes"),
+            IndexModel([("user_email", ASCENDING)], name="idx_user_email"),
+        ]
+
         # 并行创建新索引
         try:
             await credentials_collection.create_indexes(geminicli_indexes)
             await antigravity_credentials_collection.create_indexes(antigravity_indexes)
+            await claude_credentials_collection.create_indexes(claude_indexes)
             log.debug("MongoDB indexes created successfully")
         except Exception as e:
             # 如果索引已存在，忽略错误
@@ -207,6 +221,7 @@ class MongoDBManager:
             await asyncio.gather(
                 self._rebuild_redis_cache("geminicli"),
                 self._rebuild_redis_cache("antigravity"),
+                self._rebuild_redis_cache("claude"),
             )
             log.info("Redis credential pool cache ready")
         except Exception as e:
@@ -423,10 +438,16 @@ class MongoDBManager:
         """根据 mode 获取对应的集合名"""
         if mode == "antigravity":
             return "antigravity_credentials"
+        elif mode == "claude":
+            return "claude_credentials"
         elif mode == "geminicli":
             return "credentials"
+        elif mode == "codex":
+            return "codex_credentials"
         else:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'geminicli' or 'antigravity'")
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be 'geminicli', 'antigravity', 'claude' or 'codex'"
+            )
 
     # ============ SQL 方法 ============
 

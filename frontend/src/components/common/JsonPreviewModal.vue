@@ -3,6 +3,7 @@
     :show="show"
     to="body"
     display-directive="show"
+    :block-scroll="false"
     @update:show="emit('update:show', $event)"
   >
     <div class="app-modal-panel panel-shell preview-modal-shell">

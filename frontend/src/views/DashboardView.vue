@@ -33,11 +33,12 @@
         </div>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <stat-card label="GeminiCLI 凭证" :value="stats.geminicli.total" accent="Gem" :hint="statHint('geminicli')" />
         <stat-card label="Antigravity 凭证" :value="stats.antigravity.total" accent="Anti" :hint="statHint('antigravity')" />
         <stat-card label="Codex 凭证" :value="stats.codex.total" accent="Codex" :hint="statHint('codex')" />
-        <stat-card label="总凭证数" :value="totalCredentials" accent="All" hint="三类凭证累计总量" />
+        <stat-card label="Claude 凭证" :value="stats.claude.total" accent="Claude" :hint="statHint('claude')" />
+        <stat-card label="总凭证数" :value="totalCredentials" accent="All" hint="四类凭证累计总量" />
       </div>
 
       <n-grid cols="1 s:1 m:2" responsive="screen" x-gap="16" y-gap="16">
@@ -47,7 +48,7 @@
               <div class="panel-title">控制台概览</div>
             </div>
             <div class="space-y-4 text-sm leading-7 app-text-muted">
-              <p>这里展示当前三类凭证的总览，你可以先判断哪一组需要优先处理。</p>
+              <p>这里展示当前四类凭证的总览，你可以先判断哪一组需要优先处理。</p>
               <p>常见路径是先到凭证中心排查异常，再去 OAuth 补充新凭证，最后到日志页确认服务状态。</p>
               <p>如果需要调整端点、密码或重试策略，可以直接进入系统配置页处理。</p>
             </div>
@@ -60,7 +61,7 @@
             </div>
             <n-space vertical size="large">
               <router-link class="app-quick-link app-quick-link--secondary" :to="{ name: 'credentials' }">
-                打开凭证中心，检查三类凭证状态
+                打开凭证中心，检查四类凭证状态
               </router-link>
               <router-link class="app-quick-link app-quick-link--primary" :to="{ name: 'oauth' }">
                 发起 OAuth 流程并导入新凭证
@@ -98,6 +99,7 @@ const stats = reactive<Record<CredMode, CredStats>>({
   geminicli: { total: 0, normal: 0, disabled: 0 },
   antigravity: { total: 0, normal: 0, disabled: 0 },
   codex: { total: 0, normal: 0, disabled: 0 },
+  claude: { total: 0, normal: 0, disabled: 0 },
 });
 
 const totalCredentials = ref(0);
@@ -108,11 +110,12 @@ function statHint(mode: CredMode) {
 
 onMounted(async () => {
   try {
-    const [version, geminicli, antigravity, codex] = await Promise.all([
+    const [version, geminicli, antigravity, codex, claude] = await Promise.all([
       getVersionInfo(),
       getCredentialStatus("geminicli", { limit: 20 }),
       getCredentialStatus("antigravity", { limit: 20 }),
       getCredentialStatus("codex", { limit: 20 }),
+      getCredentialStatus("claude", { limit: 20 }),
     ]);
 
     versionText.value = version.version || "unknown";
@@ -121,7 +124,9 @@ onMounted(async () => {
     stats.geminicli = geminicli.stats;
     stats.antigravity = antigravity.stats;
     stats.codex = codex.stats;
-    totalCredentials.value = geminicli.stats.total + antigravity.stats.total + codex.stats.total;
+    stats.claude = claude.stats;
+    totalCredentials.value =
+      geminicli.stats.total + antigravity.stats.total + codex.stats.total + claude.stats.total;
   } catch (error) {
     const axiosError = error as AxiosError<{ detail?: string }>;
     message.error(axiosError.response?.data?.detail || "仪表盘数据加载失败");

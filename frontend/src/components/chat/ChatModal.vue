@@ -3,6 +3,7 @@
     :show="show"
     to="body"
     display-directive="show"
+    :block-scroll="false"
     @update:show="emit('update:show', $event)"
   >
     <div class="app-modal-panel panel-shell chat-modal-shell">
@@ -103,7 +104,7 @@
               取消
             </button>
             <n-button
-              class="app-primary-button min-w-[116px]"
+              class="min-w-[116px] w-full sm:w-auto"
               type="primary"
               :loading="sending"
               :disabled="!canSend"
@@ -357,10 +358,6 @@ async function handleSend() {
   }
 
   .chat-modal-shell__footer-close {
-    width: 100%;
-  }
-
-  .chat-modal-shell__footer :deep(.n-button) {
     width: 100%;
   }
 

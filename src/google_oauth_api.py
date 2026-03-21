@@ -27,6 +27,14 @@ class TokenError(Exception):
     pass
 
 
+class ProjectLookupError(Exception):
+    """project/tier 探测阶段的HTTP错误"""
+
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class Credentials:
     """凭证类"""
 
@@ -559,7 +567,8 @@ def _normalize_tier(tier_id: str) -> str:
 async def fetch_project_id_and_tier(
     access_token: str,
     user_agent: str,
-    api_base_url: str
+    api_base_url: str,
+    raise_on_http_error: bool = False,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     从 API 获取 project_id 和订阅等级
@@ -582,6 +591,8 @@ async def fetch_project_id_and_tier(
 
     subscription_tier = None
 
+    last_http_error: Optional[ProjectLookupError] = None
+
     # 步骤 1: 尝试 loadCodeAssist
     try:
         project_id, subscription_tier = await _try_load_code_assist(api_base_url, headers)
@@ -592,6 +603,8 @@ async def fetch_project_id_and_tier(
 
     except Exception as e:
         log.warning(f"[fetch_project_id_and_tier] loadCodeAssist failed: {type(e).__name__}: {e}")
+        if isinstance(e, ProjectLookupError):
+            last_http_error = e
         log.warning("[fetch_project_id_and_tier] Falling back to onboardUser")
 
     # 步骤 2: 回退到 onboardUser
@@ -601,12 +614,19 @@ async def fetch_project_id_and_tier(
             return project_id, subscription_tier
 
         log.error("[fetch_project_id_and_tier] Failed to get project_id from both loadCodeAssist and onboardUser")
+        if raise_on_http_error and last_http_error is not None:
+            raise last_http_error
         return None, subscription_tier
 
     except Exception as e:
         log.error(f"[fetch_project_id_and_tier] onboardUser failed: {type(e).__name__}: {e}")
         import traceback
         log.debug(f"[fetch_project_id_and_tier] Traceback: {traceback.format_exc()}")
+        if raise_on_http_error:
+            if isinstance(e, ProjectLookupError):
+                raise e
+            if last_http_error is not None:
+                raise last_http_error
         return None, subscription_tier
 
 
@@ -683,7 +703,10 @@ async def _try_load_code_assist(
     else:
         log.warning(f"[loadCodeAssist] Failed: HTTP {response.status_code}")
         log.warning(f"[loadCodeAssist] Response body: {response.text[:500]}")
-        raise Exception(f"HTTP {response.status_code}: {response.text[:200]}")
+        raise ProjectLookupError(
+            f"HTTP {response.status_code}: {response.text[:200]}",
+            status_code=response.status_code,
+        )
 
 
 async def _try_onboard_user(
@@ -769,7 +792,10 @@ async def _try_onboard_user(
         else:
             log.warning(f"[onboardUser] Failed: HTTP {response.status_code}")
             log.warning(f"[onboardUser] Response body: {response.text[:500]}")
-            raise Exception(f"HTTP {response.status_code}: {response.text[:200]}")
+            raise ProjectLookupError(
+                f"HTTP {response.status_code}: {response.text[:200]}",
+                status_code=response.status_code,
+            )
 
     log.error("[onboardUser] Timeout: Operation did not complete within 10 seconds")
     return None

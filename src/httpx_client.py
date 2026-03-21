@@ -16,7 +16,9 @@ from log import log
 class HttpxClientManager:
     """通用HTTP客户端管理器"""
 
-    async def get_client_kwargs(self, timeout: float = 30.0, **kwargs) -> Dict[str, Any]:
+    async def get_client_kwargs(
+        self, timeout: Optional[float] = 30.0, **kwargs
+    ) -> Dict[str, Any]:
         """获取httpx客户端的通用配置参数"""
         client_kwargs = {"timeout": timeout, **kwargs}
 
@@ -29,7 +31,7 @@ class HttpxClientManager:
 
     @asynccontextmanager
     async def get_client(
-        self, timeout: float = 30.0, **kwargs
+        self, timeout: Optional[float] = 30.0, **kwargs
     ) -> AsyncGenerator[httpx.AsyncClient, None]:
         """获取配置好的异步HTTP客户端"""
         client_kwargs = await self.get_client_kwargs(timeout=timeout, **kwargs)
@@ -39,7 +41,7 @@ class HttpxClientManager:
 
     @asynccontextmanager
     async def get_streaming_client(
-        self, timeout: float = None, **kwargs
+        self, timeout: Optional[float] = None, **kwargs
     ) -> AsyncGenerator[httpx.AsyncClient, None]:
         """获取用于流式请求的HTTP客户端（无超时限制）"""
         client_kwargs = await self.get_client_kwargs(timeout=timeout, **kwargs)
@@ -62,7 +64,10 @@ http_client = HttpxClientManager()
 
 # 通用的异步方法
 async def get_async(
-    url: str, headers: Optional[Dict[str, str]] = None, timeout: float = 30.0, **kwargs
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: Optional[float] = 30.0,
+    **kwargs,
 ) -> httpx.Response:
     """通用异步GET请求"""
     async with http_client.get_client(timeout=timeout, **kwargs) as client:
@@ -74,7 +79,7 @@ async def post_async(
     data: Any = None,
     json: Any = None,
     headers: Optional[Dict[str, str]] = None,
-    timeout: float = 600.0,
+    timeout: Optional[float] = 1200.0,
     **kwargs,
 ) -> httpx.Response:
     """通用异步POST请求"""

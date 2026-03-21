@@ -7,8 +7,12 @@
           <p class="text-sm app-text-muted">支持 `.json` 与 `.zip`，后端会自动解包 ZIP 内 JSON。</p>
         </div>
         <div class="flex gap-2">
-          <n-button class="app-toolbar-button" secondary @click="upload.clear">清空</n-button>
-          <n-button class="app-primary-button" type="primary" :loading="upload.uploading" @click="submit">
+          <n-button secondary @click="upload.clear">
+            <template #icon><app-icon name="reset" /></template>
+            清空
+          </n-button>
+          <n-button type="primary" :loading="upload.uploading" @click="submit">
+            <template #icon><app-icon name="upload" /></template>
             开始上传
           </n-button>
         </div>
@@ -45,6 +49,7 @@
 <script setup lang="ts">
 import { NButton, NProgress, NUpload, NUploadDragger, type UploadFileInfo } from "naive-ui";
 
+import AppIcon from "@/components/common/AppIcon.vue";
 import { message } from "@/utils/feedback";
 
 const props = defineProps<{
@@ -57,6 +62,10 @@ const props = defineProps<{
     clear: () => void;
     submit: () => Promise<unknown>;
   };
+}>();
+
+const emit = defineEmits<{
+  (event: "success"): void;
 }>();
 
 function handleBeforeUpload(data: { file: UploadFileInfo }) {
@@ -72,6 +81,7 @@ async function submit() {
   if (result) {
     const info = result as { uploaded_count?: number; total_count?: number; message?: string };
     message.success(info.message || `成功上传 ${info.uploaded_count}/${info.total_count} 个文件`);
+    emit("success");
   } else {
     message.warning("请先选择文件");
   }

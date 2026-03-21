@@ -9,9 +9,9 @@
               <p class="panel-desc">按服务、端点、策略和保活分组维护系统参数。</p>
             </div>
             <div class="flex flex-wrap justify-end gap-2">
-              <n-button class="app-toolbar-button" secondary @click="applyMirrorUrls">镜像地址</n-button>
-              <n-button class="app-toolbar-button" secondary @click="applyOfficialUrls">官方地址</n-button>
-              <n-button class="app-primary-button" type="primary" :loading="saving" @click="handleSave">保存配置</n-button>
+              <n-button secondary @click="applyMirrorUrls">镜像地址</n-button>
+              <n-button secondary @click="applyOfficialUrls">官方地址</n-button>
+              <n-button type="primary" :loading="saving" @click="handleSave">保存配置</n-button>
             </div>
           </div>
 

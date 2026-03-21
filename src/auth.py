@@ -43,6 +43,12 @@ from .utils import (
     CODEX_SCOPES,
     CODEX_REDIRECT_URI,
     CODEX_CALLBACK_PORT,
+    CLAUDE_CLIENT_ID,
+    CLAUDE_AUTH_URL,
+    CLAUDE_TOKEN_URL,
+    CLAUDE_SCOPES,
+    CLAUDE_REDIRECT_URI,
+    CLAUDE_CALLBACK_PORT,
     SCOPES,
     GEMINICLI_USER_AGENT,
     TOKEN_URL,
@@ -87,6 +93,21 @@ def _build_codex_auth_url(state: str, code_challenge: str) -> str:
     return f"{CODEX_AUTH_URL}?{urlencode(params)}"
 
 
+def _build_claude_auth_url(state: str, code_challenge: str) -> str:
+    """构建 Claude (Anthropic) OAuth 认证 URL"""
+    params = {
+        "code": "true",
+        "client_id": CLAUDE_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": CLAUDE_REDIRECT_URI,
+        "scope": CLAUDE_SCOPES,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "state": state,
+    }
+    return f"{CLAUDE_AUTH_URL}?{urlencode(params)}"
+
+
 async def _exchange_codex_code(code: str, redirect_uri: str, code_verifier: str) -> Dict[str, Any]:
     """使用授权码和PKCE verifier向OpenAI交换token"""
     from src.httpx_client import post_async
@@ -110,6 +131,42 @@ async def _exchange_codex_code(code: str, redirect_uri: str, code_verifier: str)
     )
     if response.status_code != 200:
         raise Exception(f"Codex token交换失败 (HTTP {response.status_code}): {response.text}")
+    return response.json()
+
+
+def _parse_claude_code_and_state(code: str) -> tuple[str, str]:
+    """解析 Claude 回调中可能附带在 code 里的 state 片段"""
+    splits = str(code or "").split("#", 1)
+    parsed_code = splits[0]
+    parsed_state = splits[1] if len(splits) > 1 else ""
+    return parsed_code, parsed_state
+
+
+async def _exchange_claude_code(code: str, state: str, code_verifier: str) -> Dict[str, Any]:
+    """使用授权码和 PKCE verifier 向 Anthropic 交换 token"""
+    from src.httpx_client import post_async
+
+    parsed_code, parsed_state = _parse_claude_code_and_state(code)
+    body: Dict[str, Any] = {
+        "code": parsed_code,
+        "state": parsed_state or state,
+        "grant_type": "authorization_code",
+        "client_id": CLAUDE_CLIENT_ID,
+        "redirect_uri": CLAUDE_REDIRECT_URI,
+        "code_verifier": code_verifier,
+    }
+
+    response = await post_async(
+        CLAUDE_TOKEN_URL,
+        json=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        timeout=30.0,
+    )
+    if response.status_code != 200:
+        raise Exception(f"Claude token交换失败 (HTTP {response.status_code}): {response.text}")
     return response.json()
 
 
@@ -170,6 +227,40 @@ def _prepare_codex_credentials_data(token_response: Dict[str, Any], id_info: Dic
     if expires_in:
         expire_time = datetime.now(timezone.utc).timestamp() + expires_in
         creds_data["expired"] = datetime.fromtimestamp(expire_time, tz=timezone.utc).isoformat()
+    return creds_data
+
+
+def _generate_claude_filename(email: str) -> str:
+    """生成 Claude 凭证文件名"""
+    safe_email = (email or "unknown").strip() or "unknown"
+    return f"claude-{safe_email}.json"
+
+
+def _prepare_claude_credentials_data(token_response: Dict[str, Any]) -> Dict[str, Any]:
+    """准备 Claude 凭证数据"""
+    account = token_response.get("account") or {}
+    email = account.get("email_address") or token_response.get("email") or ""
+
+    creds_data = {
+        "access_token": token_response.get("access_token", ""),
+        "refresh_token": token_response.get("refresh_token", ""),
+        "last_refresh": datetime.now(timezone.utc).isoformat(),
+        "email": email,
+        "type": "claude",
+    }
+
+    expires_in = token_response.get("expires_in")
+    if expires_in:
+        expire_time = datetime.now(timezone.utc).timestamp() + float(expires_in)
+        creds_data["expired"] = datetime.fromtimestamp(expire_time, tz=timezone.utc).isoformat()
+
+    organization = token_response.get("organization")
+    if isinstance(organization, dict):
+        if organization.get("uuid"):
+            creds_data["organization_id"] = organization.get("uuid")
+        if organization.get("name"):
+            creds_data["organization_name"] = organization.get("name")
+
     return creds_data
 
 
@@ -237,6 +328,53 @@ async def _complete_codex_auth(flow_data: Dict[str, Any], auth_code: str, state:
     except Exception as e:
         log.error(f"完成Codex认证失败: {e}")
         return {"success": False, "error": f"Codex认证失败: {str(e)}"}
+
+
+async def _complete_claude_auth(flow_data: Dict[str, Any], auth_code: str, state: str) -> Dict[str, Any]:
+    """完成 Claude OAuth 认证流程"""
+    try:
+        code_verifier = flow_data.get("pkce_verifier")
+        if not code_verifier:
+            return {"success": False, "error": "缺少PKCE code_verifier"}
+
+        log.info("开始 Claude token 交换...")
+        token_response = await _exchange_claude_code(auth_code, state, code_verifier)
+        log.info("Claude token 交换成功")
+
+        creds_data = _prepare_claude_credentials_data(token_response)
+        email = creds_data.get("email") or "unknown"
+        filename = _generate_claude_filename(str(email))
+
+        storage_adapter = await get_storage_adapter()
+        success = await storage_adapter.store_credential(filename, creds_data, mode="claude")
+        if not success:
+            return {"success": False, "error": "保存Claude凭证失败"}
+
+        try:
+            default_state = {
+                "error_codes": [],
+                "disabled": False,
+                "last_success": time.time(),
+                "user_email": email,
+            }
+            await storage_adapter.update_credential_state(filename, default_state, mode="claude")
+        except Exception as e:
+            log.warning(f"创建Claude凭证状态记录失败: {e}")
+
+        log.info(f"Claude凭证已保存: {filename}")
+        _cleanup_auth_flow_server(state)
+
+        return {
+            "success": True,
+            "credentials": creds_data,
+            "file_path": filename,
+            "auto_detected_project": False,
+            "mode": "claude",
+        }
+
+    except Exception as e:
+        log.error(f"完成Claude认证失败: {e}")
+        return {"success": False, "error": f"Claude认证失败: {str(e)}"}
 
 
 def _prepare_credentials_data(credentials: Credentials, project_id: str, mode: str = "geminicli", subscription_tier: str = None) -> Dict[str, Any]:
@@ -440,10 +578,13 @@ async def create_auth_url(
 ) -> Dict[str, Any]:
     """创建认证URL，支持动态端口分配"""
     try:
-        # Codex模式必须使用固定端口1455（匹配OpenAI注册的redirect_uri）
+        # 固定回调地址的第三方 OAuth 渠道
         if mode == "codex":
             callback_port = CODEX_CALLBACK_PORT
             callback_url = CODEX_REDIRECT_URI
+        elif mode == "claude":
+            callback_port = CLAUDE_CALLBACK_PORT
+            callback_url = CLAUDE_REDIRECT_URI
         else:
             # 动态分配端口
             callback_port = await find_available_port()
@@ -467,6 +608,12 @@ async def create_auth_url(
                     "success": False,
                     "error": f"无法启动Codex OAuth回调服务器，端口1455被占用。"
                     f"OpenAI要求redirect_uri必须为 {CODEX_REDIRECT_URI}，请释放端口1455后重试。",
+                }
+            if mode == "claude":
+                return {
+                    "success": False,
+                    "error": f"无法启动Claude OAuth回调服务器，端口{CLAUDE_CALLBACK_PORT}被占用。"
+                    f"Anthropic要求redirect_uri必须为 {CLAUDE_REDIRECT_URI}，请释放端口{CLAUDE_CALLBACK_PORT}后重试。",
                 }
             return {
                 "success": False,
@@ -521,6 +668,58 @@ async def create_auth_url(
             cleanup_expired_flows()
 
             log.info(f"Codex OAuth流程已创建: state={state}")
+            log.info(f"用户需要访问认证URL，然后OAuth会回调到 {callback_url}")
+
+            return {
+                "auth_url": auth_url,
+                "state": state,
+                "callback_port": callback_port,
+                "success": True,
+                "auto_project_detection": False,
+                "detected_project_id": None,
+            }
+
+        if mode == "claude":
+            pkce_codes = _generate_pkce_codes()
+
+            if user_session:
+                state = f"{user_session}_{str(uuid.uuid4())}"
+            else:
+                state = str(uuid.uuid4())
+
+            auth_url = _build_claude_auth_url(state, pkce_codes["code_challenge"])
+
+            if len(auth_flows) >= MAX_AUTH_FLOWS:
+                oldest_state = min(
+                    auth_flows.keys(), key=lambda k: auth_flows[k].get("created_at", 0)
+                )
+                try:
+                    old_flow = auth_flows[oldest_state]
+                    if old_flow.get("server"):
+                        async_shutdown_server(old_flow["server"], old_flow.get("callback_port"))
+                except Exception as e:
+                    log.warning(f"Failed to cleanup old auth flow {oldest_state}: {e}")
+                del auth_flows[oldest_state]
+
+            auth_flows[state] = {
+                "flow": None,
+                "project_id": None,
+                "user_session": user_session,
+                "callback_port": callback_port,
+                "callback_url": callback_url,
+                "server": callback_server,
+                "server_thread": server_thread,
+                "pkce_verifier": pkce_codes["code_verifier"],
+                "code": None,
+                "completed": False,
+                "created_at": time.time(),
+                "auto_project_detection": False,
+                "mode": "claude",
+            }
+
+            cleanup_expired_flows()
+
+            log.info(f"Claude OAuth流程已创建: state={state}")
             log.info(f"用户需要访问认证URL，然后OAuth会回调到 {callback_url}")
 
             return {
@@ -828,22 +1027,22 @@ async def asyncio_complete_auth_flow(
         if not state:
             log.info("没有找到指定项目的流程，查找自动检测流程")
 
-            # 对于Codex模式，按mode=codex匹配
-            if mode == "codex":
-                codex_flows = []
+            # 对于固定回调地址的第三方模式，按 mode 精确匹配
+            if mode in ("codex", "claude"):
+                external_flows = []
                 for s, data in auth_flows.items():
-                    if data.get("mode") == "codex":
+                    if data.get("mode") == mode:
                         if user_session and data.get("user_session") == user_session:
-                            codex_flows.append((s, data, data.get("created_at", 0)))
+                            external_flows.append((s, data, data.get("created_at", 0)))
                         elif not user_session:
-                            codex_flows.append((s, data, data.get("created_at", 0)))
-                if codex_flows:
+                            external_flows.append((s, data, data.get("created_at", 0)))
+                if external_flows:
                     # 优先选择有code的，然后选最新的
-                    codex_flows.sort(
+                    external_flows.sort(
                         key=lambda x: (1 if x[1].get("code") else 0, x[2]), reverse=True
                     )
-                    state, flow_data, _ = codex_flows[0]
-                    log.info(f"找到Codex认证流程: {state}")
+                    state, flow_data, _ = external_flows[0]
+                    log.info(f"找到{mode}认证流程: {state}")
 
             else:
                 # 首先尝试找到已完成的流程（有授权码的）
@@ -886,10 +1085,10 @@ async def asyncio_complete_auth_flow(
         log.info(f"传入的project_id参数: {project_id}")
 
         # 如果需要自动检测项目ID且没有提供项目ID
-        # Codex模式不需要project_id
+        # 第三方模式不需要 project_id
         cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
-        if cred_mode == "codex":
-            log.info("Codex模式，跳过project_id检查")
+        if cred_mode in ("codex", "claude"):
+            log.info(f"{cred_mode}模式，跳过project_id检查")
         elif flow_data.get("auto_project_detection", False) and not project_id:
             log.info("跳过自动检测项目ID，进入等待阶段")
         elif not project_id:
@@ -943,10 +1142,12 @@ async def asyncio_complete_auth_flow(
 
         log.info(f"开始使用授权码获取凭证: code={'***' + auth_code[-4:] if auth_code else 'None'}")
 
-        # Codex模式：使用OpenAI PKCE token交换
+        # 第三方模式：使用各自的 PKCE token 交换
         cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
         if cred_mode == "codex":
             return await _complete_codex_auth(flow_data, auth_code, state)
+        if cred_mode == "claude":
+            return await _complete_claude_auth(flow_data, auth_code, state)
 
         # 使用认证代码获取凭证
         with _OAuthLibPatcher():
@@ -1130,10 +1331,12 @@ async def complete_auth_flow_from_callback_url(
 
         flow_data = auth_flows[state]
 
-        # Codex模式：使用PKCE token交换
+        # 第三方模式：使用各自的 PKCE token 交换
         cred_mode = flow_data.get("mode", "geminicli") if flow_data.get("mode") else mode
         if cred_mode == "codex":
             return await _complete_codex_auth(flow_data, code, state)
+        if cred_mode == "claude":
+            return await _complete_claude_auth(flow_data, code, state)
 
         flow = flow_data["flow"]
 

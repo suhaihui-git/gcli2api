@@ -70,6 +70,19 @@ class SQLiteManager:
             ("created_at", "REAL DEFAULT (unixepoch())"),
             ("updated_at", "REAL DEFAULT (unixepoch())")
         ],
+        "claude_credentials": [
+            ("disabled", "INTEGER DEFAULT 0"),
+            ("error_codes", "TEXT DEFAULT '[]'"),
+            ("error_messages", "TEXT DEFAULT '[]'"),
+            ("last_success", "REAL"),
+            ("user_email", "TEXT"),
+            ("model_cooldowns", "TEXT DEFAULT '{}'"),
+            ("tier", "TEXT DEFAULT 'pro'"),
+            ("rotation_order", "INTEGER DEFAULT 0"),
+            ("call_count", "INTEGER DEFAULT 0"),
+            ("created_at", "REAL DEFAULT (unixepoch())"),
+            ("updated_at", "REAL DEFAULT (unixepoch())")
+        ],
         "codex_credentials": [
             ("disabled", "INTEGER DEFAULT 0"),
             ("error_codes", "TEXT DEFAULT '[]'"),
@@ -274,6 +287,46 @@ class SQLiteManager:
             ON antigravity_credentials(rotation_order)
         """)
 
+        # Claude 凭证表（结构与 Antigravity 类似，但独立存储）
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS claude_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT UNIQUE NOT NULL,
+                credential_data TEXT NOT NULL,
+
+                -- 状态字段
+                disabled INTEGER DEFAULT 0,
+                error_codes TEXT DEFAULT '[]',
+                error_messages TEXT DEFAULT '[]',
+                last_success REAL,
+                user_email TEXT,
+
+                -- 模型级 CD 支持 (JSON: {model_name: cooldown_timestamp})
+                model_cooldowns TEXT DEFAULT '{}',
+
+                -- tier（暂统一沿用通用展示字段）
+                tier TEXT DEFAULT 'pro',
+
+                -- 轮换相关
+                rotation_order INTEGER DEFAULT 0,
+                call_count INTEGER DEFAULT 0,
+
+                -- 时间戳
+                created_at REAL DEFAULT (unixepoch()),
+                updated_at REAL DEFAULT (unixepoch())
+            )
+        """)
+
+        # 创建索引 - Claude 凭证表
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_claude_disabled
+            ON claude_credentials(disabled)
+        """)
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_claude_rotation_order
+            ON claude_credentials(rotation_order)
+        """)
+
         # Codex 凭证表
         await db.execute("""
             CREATE TABLE IF NOT EXISTS codex_credentials (
@@ -374,8 +427,8 @@ class SQLiteManager:
                             repaired_count += 1
                             log.warning(f"Removed duplicate credential with path: {filename} (kept {basename})")
 
-            # 修复 antigravity_credentials 和 codex_credentials 表
-            for extra_table in ["antigravity_credentials", "codex_credentials"]:
+            # 修复额外凭证表
+            for extra_table in ["antigravity_credentials", "claude_credentials", "codex_credentials"]:
                 try:
                     async with db.execute(f"SELECT filename FROM {extra_table}") as cursor:
                         rows = await cursor.fetchall()
@@ -451,12 +504,16 @@ class SQLiteManager:
         """根据 mode 获取对应的表名"""
         if mode == "antigravity":
             return "antigravity_credentials"
+        elif mode == "claude":
+            return "claude_credentials"
         elif mode == "geminicli":
             return "credentials"
         elif mode == "codex":
             return "codex_credentials"
         else:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'geminicli', 'antigravity' or 'codex'")
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be 'geminicli', 'antigravity', 'claude' or 'codex'"
+            )
 
     # ============ SQL 方法 ============
 

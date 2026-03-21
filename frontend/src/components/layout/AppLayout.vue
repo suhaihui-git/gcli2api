@@ -3,8 +3,13 @@
     <div class="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] gap-4">
       <aside class="glass-panel sticky top-6 hidden h-[calc(100vh-3rem)] w-[296px] shrink-0 rounded-[28px] p-4 lg:flex lg:flex-col">
         <div class="app-contrast-panel mb-6 p-5">
-          <p class="app-contrast-kicker">su2api</p>
-          <h1 class="mt-3 text-2xl font-semibold">控制面板</h1>
+          <div class="flex items-center gap-3">
+            <img :src="siteIconUrl" alt="su2api icon" class="h-11 w-11 rounded-[14px] shadow-[0_12px_24px_rgba(15,23,42,0.18)]" />
+            <div>
+              <p class="app-contrast-kicker">su2api</p>
+              <h1 class="mt-1 text-2xl font-semibold">控制面板</h1>
+            </div>
+          </div>
           <p class="app-contrast-copy mt-2 text-sm">
             统一管理 GeminiCLI、Antigravity 与 Codex 凭证。
           </p>
@@ -34,7 +39,7 @@
             description="切换清透浅色或专注暗色。"
             @update:model-value="uiStore.setTheme"
           />
-          <n-button class="mt-5 app-shell-button" block secondary strong @click="handleLogout">
+          <n-button class="mt-5" block secondary strong @click="handleLogout">
             退出登录
           </n-button>
         </div>
@@ -42,11 +47,14 @@
 
       <div class="mobile-nav-spacer min-w-0 flex-1 lg:pb-0">
         <header class="glass-panel sticky top-3 z-30 flex items-center justify-between rounded-[22px] px-3 py-2.5 lg:hidden">
-          <div class="min-w-0">
-            <p class="app-link text-xs uppercase tracking-[0.28em]">su2api</p>
-            <h2 class="truncate text-lg font-semibold app-text-strong">{{ currentNav.label }}</h2>
+          <div class="flex min-w-0 items-center gap-3">
+            <img :src="siteIconUrl" alt="su2api icon" class="h-10 w-10 shrink-0 rounded-[12px] shadow-[0_10px_20px_rgba(15,23,42,0.14)]" />
+            <div class="min-w-0">
+              <p class="app-link text-xs uppercase tracking-[0.28em]">su2api</p>
+              <h2 class="truncate text-lg font-semibold app-text-strong">{{ currentNav.label }}</h2>
+            </div>
           </div>
-          <n-button class="app-shell-button" secondary strong circle @click="showMobileNav = true">菜单</n-button>
+          <n-button secondary strong circle @click="showMobileNav = true">菜单</n-button>
         </header>
 
         <section class="page-intro page-intro--compact glass-panel mt-3 rounded-[24px] px-4 py-3">
@@ -69,8 +77,13 @@
       <n-drawer-content closable title="导航">
         <div class="space-y-4">
           <div class="app-contrast-panel px-5 py-5">
-            <p class="app-contrast-kicker">su2api</p>
-            <h2 class="mt-3 text-2xl font-semibold">{{ currentNav.label }}</h2>
+            <div class="flex items-center gap-3">
+              <img :src="siteIconUrl" alt="su2api icon" class="h-11 w-11 rounded-[14px] shadow-[0_12px_24px_rgba(15,23,42,0.18)]" />
+              <div>
+                <p class="app-contrast-kicker">su2api</p>
+                <h2 class="mt-1 text-2xl font-semibold">{{ currentNav.label }}</h2>
+              </div>
+            </div>
             <p class="app-contrast-copy mt-2 text-sm">{{ currentNav.description }}</p>
           </div>
 
@@ -97,7 +110,7 @@
               description="切换当前控制台主题。"
               @update:model-value="uiStore.setTheme"
             />
-            <n-button class="mt-5 app-shell-button" block secondary strong @click="handleLogout">
+            <n-button class="mt-5" block secondary strong @click="handleLogout">
               退出登录
             </n-button>
           </div>
@@ -140,6 +153,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const showMobileNav = ref(false);
+const siteIconUrl = "/front/favicon.svg";
 
 const navItems = [
   { name: "dashboard", label: "概览", hint: "01", description: "查看版本、凭证总览与常用操作入口。" },

@@ -24,11 +24,11 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary @click="socket.connect">连接</n-button>
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary @click="socket.disconnect">断开</n-button>
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary @click="socket.clear">清空显示</n-button>
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary @click="handleClearServer">清空服务器日志</n-button>
-        <n-button class="app-toolbar-button w-full sm:w-auto" secondary @click="handleDownload">下载日志</n-button>
+        <n-button class="w-full sm:w-auto" secondary @click="socket.connect">连接</n-button>
+        <n-button class="w-full sm:w-auto" secondary @click="socket.disconnect">断开</n-button>
+        <n-button class="w-full sm:w-auto" secondary @click="socket.clear">清空显示</n-button>
+        <n-button class="w-full sm:w-auto" secondary @click="handleClearServer">清空服务器日志</n-button>
+        <n-button class="w-full sm:w-auto" secondary @click="handleDownload">下载日志</n-button>
         <n-select
           v-model:value="filter"
           class="min-w-[180px] flex-1 sm:flex-none"

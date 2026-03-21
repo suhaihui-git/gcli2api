@@ -18,6 +18,8 @@ _OPENAI_EXACT_PATHS = {
     "/codex/v1/chat/completions",
     "/codex/v1/models",
     "/codex/v1/responses",
+    "/claude/v1/chat/completions",
+    "/claude/v1/models",
 }
 
 _STATUS_TO_TYPE = {

@@ -120,6 +120,29 @@ class PSQLManager:
         """)
 
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS claude_credentials (
+                id SERIAL PRIMARY KEY,
+                filename TEXT UNIQUE NOT NULL,
+                credential_data TEXT NOT NULL,
+
+                disabled INTEGER DEFAULT 0,
+                error_codes TEXT DEFAULT '[]',
+                error_messages TEXT DEFAULT '[]',
+                last_success DOUBLE PRECISION,
+                user_email TEXT,
+
+                model_cooldowns TEXT DEFAULT '{}',
+                tier TEXT DEFAULT 'pro',
+
+                rotation_order INTEGER DEFAULT 0,
+                call_count INTEGER DEFAULT 0,
+
+                created_at DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()),
+                updated_at DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW())
+            )
+        """)
+
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -139,6 +162,12 @@ class PSQLManager:
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_ag_rotation_order ON antigravity_credentials(rotation_order)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_claude_disabled ON claude_credentials(disabled)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_claude_rotation_order ON claude_credentials(rotation_order)
         """)
 
         log.debug("PostgreSQL tables and indexes created")
@@ -161,6 +190,19 @@ class PSQLManager:
                 ("updated_at", "DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW())"),
             ],
             "antigravity_credentials": [
+                ("disabled", "INTEGER DEFAULT 0"),
+                ("error_codes", "TEXT DEFAULT '[]'"),
+                ("error_messages", "TEXT DEFAULT '[]'"),
+                ("last_success", "DOUBLE PRECISION"),
+                ("user_email", "TEXT"),
+                ("model_cooldowns", "TEXT DEFAULT '{}'"),
+                ("tier", "TEXT DEFAULT 'pro'"),
+                ("rotation_order", "INTEGER DEFAULT 0"),
+                ("call_count", "INTEGER DEFAULT 0"),
+                ("created_at", "DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW())"),
+                ("updated_at", "DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW())"),
+            ],
+            "claude_credentials": [
                 ("disabled", "INTEGER DEFAULT 0"),
                 ("error_codes", "TEXT DEFAULT '[]'"),
                 ("error_messages", "TEXT DEFAULT '[]'"),
@@ -232,10 +274,14 @@ class PSQLManager:
     def _get_table_name(self, mode: str) -> str:
         if mode == "antigravity":
             return "antigravity_credentials"
+        elif mode == "claude":
+            return "claude_credentials"
         elif mode == "geminicli":
             return "credentials"
         else:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'geminicli' or 'antigravity'")
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be 'geminicli', 'antigravity' or 'claude'"
+            )
 
     # ============ 凭证查询方法 ============
 
