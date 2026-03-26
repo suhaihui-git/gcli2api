@@ -4,6 +4,7 @@ Main Web Integration - Integrates all routers and modules
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -202,11 +203,11 @@ app.include_router(panel_router, prefix="", tags=["Panel Interface"])
 # 静态文件路由 - 服务front目录下的文件（HTML、JS、CSS等）
 app.mount("/front", StaticFiles(directory="front"), name="front")
 
-
 # 保活接口（仅响应 HEAD）
 @app.head("/keepalive")
 async def keepalive() -> Response:
     return Response(status_code=200)
+
 
 async def main():
     """异步主启动函数"""
@@ -218,10 +219,14 @@ async def main():
     port = await get_server_port()
     host = await get_server_host()
 
+    workers = int(os.environ.get("WORKERS", 1))
+
     log.info("=" * 60)
     log.info("启动 Gemini API Pool")
     log.info("=" * 60)
     log.info(f"控制面板: http://127.0.0.1:{port}")
+    if workers > 1:
+        log.info(f"Worker 数量: {workers}")
     log.info("=" * 60)
 
     log.info(f"   Codex (OpenAI格式): http://127.0.0.1:{port}/codex/v1")
@@ -236,6 +241,7 @@ async def main():
     config.accesslog = "-"
     config.errorlog = "-"
     config.loglevel = "INFO"
+    config.workers = workers
 
     # 设置连接超时
     config.keep_alive_timeout = 600  # 10分钟
